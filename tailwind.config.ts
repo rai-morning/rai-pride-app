@@ -11,6 +11,17 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        neon: {
+          pink: "#ff4fd8",
+          cyan: "#27d3ff",
+          yellow: "#ffd84a",
+          purple: "#7a5cff",
+        },
+        dark: {
+          base: "#09061a",
+          card: "#151232",
+          input: "#100d26",
+        },
       },
     },
   },

@@ -37,15 +37,21 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col justify-center bg-[#0a0f1e] px-4 py-8">
+    <main className="min-h-screen flex flex-col justify-center bg-[#0a0a0f] px-4 py-8">
       <div className="w-full max-w-[390px] mx-auto">
-        <div className="bg-[#1a1f2e] rounded-2xl shadow-xl p-6">
-          <h1 className="text-xl font-bold text-white text-center mb-1">アカウント登録</h1>
-          <p className="text-gray-400 text-center text-sm mb-7">新しいアカウントを作成してください</p>
+        {/* ロゴ */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-black tracking-widest text-[#00f5ff] neon-text-cyan">RAISE</h1>
+          <p className="text-[#8888aa] text-xs mt-1 tracking-wider">CONNECT · DISCOVER · RISE</p>
+        </div>
+
+        <div className="bg-[#12121f] border border-[#ff2d78]/20 rounded-2xl shadow-xl p-6 neon-border-pink">
+          <h2 className="text-lg font-bold text-white text-center mb-1">アカウント登録</h2>
+          <p className="text-[#8888aa] text-center text-sm mb-7">新しいアカウントを作成してください</p>
 
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">
+              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">
                 メールアドレス
               </label>
               <input
@@ -54,12 +60,12 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="example@email.com"
-                className="w-full bg-[#252b3b] text-white text-base placeholder-gray-500 border border-gray-600 rounded-xl px-4 py-3.5 focus:outline-none focus:border-blue-500 transition"
+                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
               />
             </div>
 
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">
+              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">
                 パスワード
               </label>
               <input
@@ -68,7 +74,7 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="6文字以上"
-                className="w-full bg-[#252b3b] text-white text-base placeholder-gray-500 border border-gray-600 rounded-xl px-4 py-3.5 focus:outline-none focus:border-blue-500 transition"
+                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
               />
             </div>
 
@@ -81,15 +87,15 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full h-12 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-800 disabled:cursor-not-allowed text-white text-base font-semibold rounded-xl transition"
+              className="w-full h-12 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 active:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed text-white text-base font-semibold rounded-xl transition"
             >
               {loading ? "登録中..." : "アカウントを作成"}
             </button>
           </form>
 
-          <p className="text-gray-400 text-sm text-center mt-6">
+          <p className="text-[#8888aa] text-sm text-center mt-6">
             すでにアカウントをお持ちの方は{" "}
-            <Link href="/auth/login" className="text-blue-400 hover:text-blue-300 underline">
+            <Link href="/auth/login" className="text-[#00f5ff] hover:opacity-80 underline">
               ログイン
             </Link>
           </p>

@@ -3,25 +3,55 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #09061a;
+  --background-elevated: #151232;
+  --foreground: #ffffff;
+  --neon-cyan: #27d3ff;
+  --neon-pink: #ff4fd8;
+  --neon-yellow: #ffd84a;
+  --neon-purple: #7a5cff;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  --foreground: #ffffff;
+  background:
+    radial-gradient(1200px 700px at 10% -10%, #27d3ff1a 0%, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #ffd84a14 0%, transparent 55%),
+    radial-gradient(1200px 700px at 60% 110%, #ff4fd81a 0%, transparent 60%),
+    radial-gradient(900px 600px at 50% -20%, #7a5cff24 0%, transparent 60%),
+    var(--background);
 }
+
+body { color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .neon-text-cyan {
+    text-shadow: 0 0 10px #27d3ff80, 0 0 20px #27d3ff40;
+  }
+  .neon-text-pink {
+    text-shadow: 0 0 10px #ff4fd890, 0 0 20px #ff4fd850;
+  }
+  .neon-text-yellow {
+    text-shadow: 0 0 10px #ffd84a90, 0 0 20px #ffd84a50;
+  }
+  .neon-gradient-3 {
+    background-image: linear-gradient(90deg, var(--neon-pink), var(--neon-cyan), var(--neon-yellow));
+  }
+  .neon-border-pink {
+    box-shadow: 0 0 8px #ff4fd850;
+  }
+  .neon-border-cyan {
+    box-shadow: 0 0 8px #27d3ff50;
+  }
+  .neon-border-yellow {
+    box-shadow: 0 0 8px #ffd84a50;
   }
 }
