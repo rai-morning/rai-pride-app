@@ -48,16 +48,26 @@ service cloud.firestore {
     }
 
     match /likes/{likeId} {
-      allow read: if signedIn()
-        && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      allow get: if signedIn()
+        && (
+          resource == null
+          || resource.data.fromUserId == request.auth.uid
+          || resource.data.toUserId == request.auth.uid
+        );
+      allow list: if signedIn();
       allow create: if signedIn() && request.resource.data.fromUserId == request.auth.uid;
       allow update: if false;
       allow delete: if signedIn() && resource.data.fromUserId == request.auth.uid;
     }
 
     match /favorites/{favoriteId} {
-      allow read: if signedIn()
-        && (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      allow get: if signedIn()
+        && (
+          resource == null
+          || resource.data.fromUserId == request.auth.uid
+          || resource.data.toUserId == request.auth.uid
+        );
+      allow list: if signedIn();
       allow create: if signedIn() && request.resource.data.fromUserId == request.auth.uid;
       allow update: if false;
       allow delete: if signedIn() && resource.data.fromUserId == request.auth.uid;

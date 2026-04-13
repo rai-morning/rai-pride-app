@@ -27,8 +27,12 @@ export async function removeFavorite(fromUserId: string, toUserId: string): Prom
 
 export async function hasFavorited(fromUserId: string, toUserId: string): Promise<boolean> {
   const favoriteId = `${fromUserId}_${toUserId}`;
-  const snap = await getDoc(doc(db, "favorites", favoriteId));
-  return snap.exists();
+  try {
+    const snap = await getDoc(doc(db, "favorites", favoriteId));
+    return snap.exists();
+  } catch {
+    return false;
+  }
 }
 
 export async function getFavoritedUserIds(fromUserId: string): Promise<string[]> {

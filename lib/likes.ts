@@ -38,8 +38,12 @@ export async function removeLike(fromUserId: string, toUserId: string): Promise<
 // 既にいいね済みか確認
 export async function hasLiked(fromUserId: string, toUserId: string): Promise<boolean> {
   const likeId = `${fromUserId}_${toUserId}`;
-  const snap = await getDoc(doc(db, "likes", likeId));
-  return snap.exists();
+  try {
+    const snap = await getDoc(doc(db, "likes", likeId));
+    return snap.exists();
+  } catch {
+    return false;
+  }
 }
 
 // 自分が送ったいいね一覧（新しい順）
