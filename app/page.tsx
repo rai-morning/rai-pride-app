@@ -106,13 +106,28 @@ export default function HomePage() {
   }, [user]);
 
   const initLocation = async (uid: string) => {
+    const handleLoadUsersError = (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "ユーザー情報の取得に失敗しました";
+      console.warn("[Home] ユーザー取得エラー:", msg);
+      if (msg.includes("Missing or insufficient permissions")) {
+        setLocationWarning("ユーザー情報の読み取り権限が不足しています。Firestoreルールで users コレクションの read/update を許可してください");
+      } else {
+        setLocationWarning(`ユーザー情報の取得に失敗しました: ${msg}`);
+      }
+      setLocationStatus("warn");
+    };
+
     setLocationStatus("loading");
     setLocationWarning("");
     const permissionState = await getLocationPermissionState();
     if (permissionState === "denied") {
       setLocationWarning("位置情報がブラウザで拒否されています。サイト設定から位置情報を許可して再試行してください");
       setLocationStatus("warn");
-      await loadUsers(uid, null, null);
+      try {
+        await loadUsers(uid, null, null);
+      } catch (err) {
+        handleLoadUsersError(err);
+      }
       return;
     }
 
@@ -123,13 +138,21 @@ export default function HomePage() {
         await updateDoc(doc(db, "users", uid), { location: { lat: latitude, lng: longitude } });
       } catch (e) { console.warn("[Home] location保存失敗:", e); }
       setLocationStatus("done");
-      await loadUsers(uid, latitude, longitude);
+      try {
+        await loadUsers(uid, latitude, longitude);
+      } catch (err) {
+        handleLoadUsersError(err);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "位置情報を取得できませんでした";
       console.warn("[Home] 位置情報エラー:", msg);
       setLocationWarning(msg);
       setLocationStatus("warn");
-      await loadUsers(uid, null, null);
+      try {
+        await loadUsers(uid, null, null);
+      } catch (loadErr) {
+        handleLoadUsersError(loadErr);
+      }
     }
   };
 
@@ -249,7 +272,7 @@ export default function HomePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
               </svg>
               <div>
-                <p className="text-yellow-400 text-xs">位置情報を取得できなかったため、距離表示なしで全ユーザーを表示しています</p>
+                <p className="text-yellow-400 text-xs">位置情報またはデータ取得でエラーが発生しました</p>
                 <p className="text-yellow-200 text-[11px] mt-1 break-words">{locationWarning}</p>
                 <p className="text-yellow-300/80 text-[11px] mt-1">ヒント: ブラウザのサイト設定で位置情報を「許可」に変更すると改善することがあります</p>
                 <button onClick={() => user && initLocation(user.uid)} className="mt-1 text-[#00f5ff] text-xs underline">再試行</button>
