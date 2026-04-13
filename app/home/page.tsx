@@ -15,7 +15,7 @@ import { getFavoritedUserIds } from "@/lib/favorites";
 import BottomNav from "@/components/BottomNav";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
-const RADIUS_M = 500;
+const RADIUS_M = 100_000;
 
 type Position = "top" | "bottom" | "versatile" | "side";
 type DisplayMode = "all" | "community" | "favorites";
@@ -331,20 +331,20 @@ export default function HomePage() {
                 {visibleUsers.length > 0 && <span className="ml-2 text-[#ff2d78] text-sm font-normal">{visibleUsers.length}人</span>}
               </h2>
               {locationStatus === "done" && displayMode === "all" && (
-                <span className="text-[#8888aa] text-xs">半径500m以内</span>
+                <span className="text-[#8888aa] text-xs">半径100km以内</span>
               )}
             </div>
           )}
 
           {/* カードグリッド */}
           {isReady && !fetchingUsers && visibleUsers.length > 0 && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {visibleUsers.map((u) => {
                 const online = isOnline(u.lastOnline);
                 return (
                   <button key={u.uid} onClick={() => router.push(`/profile/${u.uid}`)}
                     className="bg-[#12121f] border border-[#ff2d78]/20 hover:border-[#ff2d78]/50 rounded-2xl overflow-hidden text-left active:scale-95 transition-all">
-                    <div className="relative w-full aspect-[3/4] bg-[#0d0d1a]">
+                    <div className="relative w-full aspect-square bg-[#0d0d1a]">
                       {u.images[0] ? (
                         <Image src={u.images[0]} alt={u.name} fill className="object-cover" unoptimized />
                       ) : (
