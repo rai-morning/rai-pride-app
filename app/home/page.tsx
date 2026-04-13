@@ -250,6 +250,7 @@ export default function HomePage() {
               </svg>
               <div>
                 <p className="text-yellow-400 text-xs">位置情報を取得できなかったため、距離表示なしで全ユーザーを表示しています</p>
+                <p className="text-yellow-200 text-[11px] mt-1 break-words">{locationWarning}</p>
                 <p className="text-yellow-300/80 text-[11px] mt-1">ヒント: ブラウザのサイト設定で位置情報を「許可」に変更すると改善することがあります</p>
                 <button onClick={() => user && initLocation(user.uid)} className="mt-1 text-[#00f5ff] text-xs underline">再試行</button>
               </div>
