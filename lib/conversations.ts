@@ -58,38 +58,52 @@ export async function getOrCreateConversation(
 // 自分の全会話を取得（リアルタイム）
 export function subscribeConversations(
   myUid: string,
-  callback: (convs: Conversation[]) => void
+  callback: (convs: Conversation[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, "conversations"),
     where("participants", "array-contains", myUid),
     orderBy("lastMessageAt", "desc")
   );
-  return onSnapshot(q, (snap) => {
-    const convs: Conversation[] = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<Conversation, "id">),
-    }));
-    callback(convs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const convs: Conversation[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Conversation, "id">),
+      }));
+      callback(convs);
+    },
+    (error) => {
+      onError?.(error);
+    }
+  );
 }
 
 // メッセージ一覧をリアルタイム購読
 export function subscribeMessages(
   conversationId: string,
-  callback: (msgs: Message[]) => void
+  callback: (msgs: Message[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const q = query(
     collection(db, "messages", conversationId, "msgs"),
     orderBy("createdAt", "asc")
   );
-  return onSnapshot(q, (snap) => {
-    const msgs: Message[] = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as Omit<Message, "id">),
-    }));
-    callback(msgs);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const msgs: Message[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Message, "id">),
+      }));
+      callback(msgs);
+    },
+    (error) => {
+      onError?.(error);
+    }
+  );
 }
 
 // メッセージ送信

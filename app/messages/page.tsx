@@ -57,26 +57,40 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!user) return;
-    const unsub = subscribeConversations(user.uid, async (convs) => {
-      const enriched = await Promise.all(
-        convs.map(async (conv) => {
-          const otherUid = conv.participants.find((id) => id !== user.uid) ?? "";
-          let otherName = "Unknown";
-          let otherImage = "";
-          if (otherUid) {
-            const snap = await getDoc(doc(db, "users", otherUid));
-            if (snap.exists()) {
-              const data = snap.data();
-              otherName = data.name ?? "Unknown";
-              otherImage = data.images?.[0] ?? "";
-            }
-          }
-          return { ...conv, otherName, otherImage, otherUid };
-        })
-      );
-      setConversations(enriched);
-      setLoading(false);
-    });
+    const unsub = subscribeConversations(
+      user.uid,
+      async (convs) => {
+        try {
+          const enriched = await Promise.all(
+            convs.map(async (conv) => {
+              const otherUid = conv.participants.find((id) => id !== user.uid) ?? "";
+              let otherName = "Unknown";
+              let otherImage = "";
+              if (otherUid) {
+                try {
+                  const snap = await getDoc(doc(db, "users", otherUid));
+                  if (snap.exists()) {
+                    const data = snap.data();
+                    otherName = data.name ?? "Unknown";
+                    otherImage = data.images?.[0] ?? "";
+                  }
+                } catch {
+                  // 相手プロフィール読込失敗時は会話だけ表示
+                }
+              }
+              return { ...conv, otherName, otherImage, otherUid };
+            })
+          );
+          setConversations(enriched);
+        } finally {
+          setLoading(false);
+        }
+      },
+      () => {
+        setConversations([]);
+        setLoading(false);
+      }
+    );
     return () => unsub();
   }, [user]);
 
