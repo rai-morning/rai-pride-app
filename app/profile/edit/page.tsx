@@ -29,7 +29,7 @@ export default function ProfileEditPage() {
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [position, setPosition] = useState<Position>("versatile");
-  const [hobby, setHobby] = useState("");
+  const [livingArea, setLivingArea] = useState("");
   const [bio, setBio] = useState("");
   const [instagramId, setInstagramId] = useState("");
   const [tiktokId, setTiktokId] = useState("");
@@ -76,7 +76,7 @@ export default function ProfileEditPage() {
         setHeight(String(d.height ?? ""));
         setWeight(String(d.weight ?? ""));
         setPosition((d.position as Position) ?? "versatile");
-        setHobby(d.hobby ?? "");
+        setLivingArea(d.livingArea ?? d.hobby ?? "");
         setBio(d.bio ?? "");
         setInstagramId(d.instagramId ?? "");
         setTiktokId(d.tiktokId ?? "");
@@ -238,7 +238,7 @@ export default function ProfileEditPage() {
       await setDoc(doc(db, "users", user.uid), {
         name, age: Number(age), height: Number(height), weight: Number(weight),
         position,
-        hobby,
+        livingArea: livingArea.trim(),
         bio,
         instagramId: instagramId.trim(),
         tiktokId: tiktokId.trim(),
@@ -333,10 +333,10 @@ export default function ProfileEditPage() {
             </div>
           </div>
 
-          {/* 趣味 */}
+          {/* 生活地域 */}
           <div>
-            <label className="block text-[#8888aa] text-sm font-medium mb-1.5">趣味</label>
-            <input type="text" value={hobby} onChange={(e) => setHobby(e.target.value)} placeholder="例：映画鑑賞、ジム、料理"
+            <label className="block text-[#8888aa] text-sm font-medium mb-1.5">生活地域</label>
+            <input type="text" value={livingArea} onChange={(e) => setLivingArea(e.target.value)} maxLength={30} placeholder="例：渋谷区 / 横浜市"
               className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition" />
           </div>
 

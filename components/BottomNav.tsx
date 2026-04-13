@@ -10,7 +10,8 @@ import { subscribeUnreadCount } from "@/lib/notifications";
 function SearchIcon({ active }: { active: boolean }) {
   return (
     <svg className={`w-5 h-5 ${active ? "text-[#ff2d78]" : "text-[#8888aa]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   );
 }

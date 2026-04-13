@@ -23,7 +23,7 @@ type ProfileData = {
   height: number;
   weight: number;
   position: Position;
-  hobby: string;
+  livingArea?: string;
   bio: string;
   instagramId?: string;
   tiktokId?: string;
@@ -115,7 +115,11 @@ export default function ProfileDetailPage() {
       ]);
       if (!snap.exists()) { setNotFound(true); return; }
       const data = snap.data();
-      setProfile({ ...data, lastOnline: data.lastOnline ?? null } as ProfileData);
+      setProfile({
+        ...data,
+        livingArea: data.livingArea ?? data.hobby ?? "",
+        lastOnline: data.lastOnline ?? null,
+      } as ProfileData);
       setIsBlocked(blocked.includes(userId));
       setIsMuted(muted.includes(userId));
       setIsLiked(liked);
@@ -285,19 +289,6 @@ export default function ProfileDetailPage() {
           </button>
           <h1 className="text-base font-bold text-white flex-1 truncate">{p.name}</h1>
           <div className="flex items-center gap-1">
-            <button onClick={handleFavorite} disabled={favoriting}
-              className={`w-9 h-9 flex items-center justify-center rounded-full transition ${
-                isFavorited ? "bg-[#ff2d78]/15 text-[#ff2d78]" : "hover:bg-[#1a1a2e] text-[#8888aa]"
-              }`}
-              aria-label={isFavorited ? "お気に入り解除" : "お気に入り登録"}>
-              {favoriting ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-5 h-5" fill={isFavorited ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 3 13.274 3 10.5a4.5 4.5 0 018.145-2.579L12 9.17l.855-1.249A4.5 4.5 0 0121 10.5c0 2.774-1.688 4.86-3.989 7.007a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.218l-.022.012-.007.004-.003.001a.75.75 0 01-.704 0l-.003-.001z" />
-                </svg>
-              )}
-            </button>
             {/* 通報ボタン */}
             <button onClick={() => { setReportOpen(true); setReportDone(false); setReportReason(""); }}
               className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#1a1a2e] transition" aria-label="通報">
@@ -380,11 +371,11 @@ export default function ProfileDetailPage() {
               ))}
           </div>
 
-          {/* 趣味・自己紹介 */}
-          {!isBlocked && p.hobby && (
+          {/* 生活地域・自己紹介 */}
+          {!isBlocked && p.livingArea && (
             <div className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-4 py-4">
-              <p className="text-[#8888aa] text-xs font-medium mb-1.5">趣味</p>
-              <p className="text-white text-sm leading-relaxed">{p.hobby}</p>
+              <p className="text-[#8888aa] text-xs font-medium mb-1.5">生活地域</p>
+              <p className="text-white text-sm leading-relaxed">{p.livingArea}</p>
             </div>
           )}
           {!isBlocked && p.bio && (
@@ -427,32 +418,50 @@ export default function ProfileDetailPage() {
           {/* アクションボタン */}
           <div className="space-y-3 pt-1">
             {!isBlocked && (
-              <div className="flex gap-3">
+              <>
                 {/* メッセージボタン */}
                 <button onClick={() => router.push(`/messages/${userId}`)}
-                  className="flex-1 h-12 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 active:opacity-80 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-2">
+                  className="w-full h-12 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 active:opacity-80 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                   メッセージ
                 </button>
-                {/* いいねボタン */}
-                <button onClick={handleLike} disabled={liking}
-                  className={`w-12 h-12 rounded-xl border transition flex items-center justify-center disabled:opacity-50 ${
-                    isLiked
-                      ? "bg-[#ff2d78]/20 border-[#ff2d78] text-[#ff2d78]"
-                      : "bg-[#12121f] border-[#ff2d78]/30 text-[#8888aa] hover:border-[#ff2d78] hover:text-[#ff2d78]"
-                  }`}
-                  aria-label={isLiked ? "いいね解除" : "いいね"}>
-                  {liking ? (
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <svg className="w-5 h-5" fill={isLiked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={handleLike} disabled={liking}
+                    className={`h-11 rounded-xl border transition flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 ${
+                      isLiked
+                        ? "bg-[#ff2d78]/20 border-[#ff2d78] text-[#ff2d78]"
+                        : "bg-[#12121f] border-[#ff2d78]/30 text-[#8888aa] hover:border-[#ff2d78] hover:text-[#ff2d78]"
+                    }`}
+                    aria-label={isLiked ? "いいね解除" : "いいね"}>
+                    {liking ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                      </svg>
+                    )}
+                    {isLiked ? "いいね済み" : "いいね"}
+                  </button>
+                  <button onClick={handleFavorite} disabled={favoriting}
+                    className={`h-11 rounded-xl border transition flex items-center justify-center gap-2 text-sm font-medium disabled:opacity-50 ${
+                      isFavorited
+                        ? "bg-[#bf00ff]/20 border-[#bf00ff] text-[#bf00ff]"
+                        : "bg-[#12121f] border-[#bf00ff]/30 text-[#8888aa] hover:border-[#bf00ff] hover:text-[#bf00ff]"
+                    }`}
+                    aria-label={isFavorited ? "お気に入り解除" : "お気に入り登録"}>
+                    {favoriting ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="w-4 h-4" fill={isFavorited ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 3 13.274 3 10.5a4.5 4.5 0 018.145-2.579L12 9.17l.855-1.249A4.5 4.5 0 0121 10.5c0 2.774-1.688 4.86-3.989 7.007a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.218l-.022.012-.007.004-.003.001a.75.75 0 01-.704 0l-.003-.001z" />
+                      </svg>
+                    )}
+                    {isFavorited ? "お気に入り済み" : "お気に入り"}
+                  </button>
+                </div>
+              </>
             )}
 
             {/* ミュートボタン */}

@@ -17,7 +17,7 @@ type ProfileData = {
   height: number;
   weight: number;
   position: Position;
-  hobby: string;
+  livingArea?: string;
   bio: string;
   instagramId?: string;
   tiktokId?: string;
@@ -66,7 +66,13 @@ export default function MyProfilePage() {
     setProfileLoading(true);
     try {
       const snap = await getDoc(doc(db, "users", uid));
-      if (snap.exists()) setProfile(snap.data() as ProfileData);
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfile({
+          ...data,
+          livingArea: data.livingArea ?? data.hobby ?? "",
+        } as ProfileData);
+      }
     } finally {
       setProfileLoading(false);
     }
@@ -166,11 +172,11 @@ export default function MyProfilePage() {
                 ))}
               </div>
 
-              {/* 趣味 */}
-              {profile.hobby && (
+              {/* 生活地域 */}
+              {profile.livingArea && (
                 <div className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-4 py-4">
-                  <p className="text-[#8888aa] text-xs font-medium mb-1.5">趣味</p>
-                  <p className="text-white text-sm leading-relaxed">{profile.hobby}</p>
+                  <p className="text-[#8888aa] text-xs font-medium mb-1.5">生活地域</p>
+                  <p className="text-white text-sm leading-relaxed">{profile.livingArea}</p>
                 </div>
               )}
 
