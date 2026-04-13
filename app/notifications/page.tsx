@@ -141,7 +141,7 @@ function NotificationsPage() {
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "received", label: "いいね受信", count: receivedCards.length },
     { key: "sent",     label: "いいね送信", count: sentCards.length },
-    { key: "views",    label: "閲覧履歴",   count: viewCards.length },
+    { key: "views",    label: "足跡",       count: viewCards.length },
   ];
 
   const isLoading =
@@ -223,68 +223,45 @@ function NotificationsPage() {
               <p className="text-[#8888aa] text-sm">{emptyMessages[activeTab].sub}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <ul className="divide-y divide-[#ff2d78]/10 bg-[#12121f] border border-[#ff2d78]/20 rounded-2xl overflow-hidden">
               {currentCards.map((card) => (
-                <button
-                  key={card.uid}
-                  onClick={() => router.push(`/profile/${card.uid}`)}
-                  className="bg-[#12121f] border border-[#ff2d78]/20 hover:border-[#ff2d78]/50 rounded-2xl overflow-hidden text-left active:scale-95 transition-all"
-                >
-                  {/* 画像 */}
-                  <div className="relative w-full aspect-[3/4] bg-[#0d0d1a]">
-                    {card.images[0] ? (
-                      <Image src={card.images[0]} alt={card.name} fill className="object-cover" unoptimized />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <svg className="w-10 h-10 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
+                <li key={card.uid}>
+                  <button
+                    onClick={() => router.push(`/profile/${card.uid}`)}
+                    className="w-full flex items-center gap-3 px-3 py-3 hover:bg-[#1a1a2e] active:bg-[#1f1f34] transition text-left"
+                  >
+                    {/* 小さい正方形のメイン画像 */}
+                    <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-[#0d0d1a] border border-[#ff2d78]/20 shrink-0">
+                      {card.images[0] ? (
+                        <Image src={card.images[0]} alt={card.name} fill className="object-cover" unoptimized />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <p className="text-white text-sm font-semibold truncate">{card.name}</p>
+                          {card.online && <span className="shrink-0 text-[10px] text-green-400 font-medium">●</span>}
+                        </div>
+                        <span className="text-[#8888aa] text-[10px] shrink-0">{formatTime(card.timestamp)}</span>
                       </div>
-                    )}
-                    {/* オンラインバッジ */}
-                    {card.online && (
-                      <div className="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full border-2 border-[#12121f]" />
-                    )}
-                    {/* タイプバッジ */}
-                    <div className="absolute top-2 left-2">
-                      {activeTab === "received" && (
-                        <div className="bg-[#ff2d78]/80 backdrop-blur-sm rounded-full p-1.5">
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                        </div>
-                      )}
-                      {activeTab === "sent" && (
-                        <div className="bg-[#bf00ff]/80 backdrop-blur-sm rounded-full p-1.5">
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                        </div>
-                      )}
-                      {activeTab === "views" && (
-                        <div className="bg-[#00f5ff]/60 backdrop-blur-sm rounded-full p-1.5">
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[#8888aa] text-xs">{card.age}歳</p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-[#ff2d78]/30 text-[#ff2d78]">
+                          {activeTab === "received" ? "いいね受信" : activeTab === "sent" ? "いいね送信" : "閲覧"}
+                        </span>
+                      </div>
                     </div>
-                    {/* 時刻 */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-4">
-                      <span className="text-white/80 text-[10px]">{formatTime(card.timestamp)}</span>
-                    </div>
-                  </div>
-                  <div className="px-3 py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-white text-sm font-semibold truncate">{card.name}</p>
-                      {card.online && <span className="shrink-0 text-[10px] text-green-400 font-medium">●</span>}
-                    </div>
-                    <p className="text-[#8888aa] text-xs mt-0.5">{card.age}歳</p>
-                  </div>
-                </button>
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       </main>
