@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
@@ -235,7 +235,7 @@ export default function ProfileEditPage() {
       const resolvedMainImage = selectedMainImage || allProfileImages[0] || "";
       const images = Array.from(new Set([resolvedMainImage, ...allProfileImages].filter(Boolean)));
       setError("プロフィールを保存中...");
-      await updateDoc(doc(db, "users", user.uid), {
+      await setDoc(doc(db, "users", user.uid), {
         name, age: Number(age), height: Number(height), weight: Number(weight),
         position,
         hobby,
@@ -249,7 +249,7 @@ export default function ProfileEditPage() {
         albumVisibilityMode: "mutual_approval_simultaneous",
         mainImage: resolvedMainImage,
         images,
-      });
+      }, { merge: true });
       router.push("/profile/me");
     } catch (err) {
       console.error("保存エラー:", err);
