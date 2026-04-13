@@ -6,7 +6,7 @@ import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, doc, getDocs, updateDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { calcDistance, formatDistance, getCurrentPosition } from "@/lib/location";
+import { calcDistance, formatDistance, getCurrentPosition, getLocationPermissionState } from "@/lib/location";
 import { getBlockedUsers } from "@/lib/block";
 import { getMutedUsers } from "@/lib/mute";
 import { getUserCommunityIds, getSharedCommunityUserIds, getCommunities, Community } from "@/lib/communities";
@@ -108,6 +108,14 @@ export default function HomePage() {
   const initLocation = async (uid: string) => {
     setLocationStatus("loading");
     setLocationWarning("");
+    const permissionState = await getLocationPermissionState();
+    if (permissionState === "denied") {
+      setLocationWarning("位置情報がブラウザで拒否されています。サイト設定から位置情報を許可して再試行してください");
+      setLocationStatus("warn");
+      await loadUsers(uid, null, null);
+      return;
+    }
+
     try {
       const coords = await getCurrentPosition();
       const { latitude, longitude } = coords;
@@ -242,6 +250,7 @@ export default function HomePage() {
               </svg>
               <div>
                 <p className="text-yellow-400 text-xs">位置情報を取得できなかったため、距離表示なしで全ユーザーを表示しています</p>
+                <p className="text-yellow-300/80 text-[11px] mt-1">ヒント: ブラウザのサイト設定で位置情報を「許可」に変更すると改善することがあります</p>
                 <button onClick={() => user && initLocation(user.uid)} className="mt-1 text-[#00f5ff] text-xs underline">再試行</button>
               </div>
             </div>

@@ -18,16 +18,67 @@ export function calcDistance(
 // ブラウザのGeolocation APIで現在地を取得
 export function getCurrentPosition(): Promise<GeolocationCoordinates> {
   return new Promise((resolve, reject) => {
+    if (!window.isSecureContext) {
+      reject(new Error("位置情報はHTTPS接続でのみ利用できます"));
+      return;
+    }
+
     if (!navigator.geolocation) {
       reject(new Error("このブラウザは位置情報に対応していません"));
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve(pos.coords),
-      (err) => reject(new Error(`位置情報の取得に失敗しました: ${err.message}`)),
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
-    );
+
+    const attempts: PositionOptions[] = [
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      // 省電力/おおまかな位置でも良い設定で再試行
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
+    ];
+
+    const mapErrorMessage = (err: GeolocationPositionError) => {
+      switch (err.code) {
+        case err.PERMISSION_DENIED:
+          return "位置情報の許可がオフです。ブラウザ設定からこのサイトの位置情報を許可してください";
+        case err.POSITION_UNAVAILABLE:
+          return "現在地を特定できませんでした。GPS/Wi-Fi/モバイル通信をONにして再試行してください";
+        case err.TIMEOUT:
+          return "位置情報の取得がタイムアウトしました。電波の良い場所で再試行してください";
+        default:
+          return `位置情報の取得に失敗しました: ${err.message}`;
+      }
+    };
+
+    const tryAt = (index: number) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve(pos.coords),
+        (err) => {
+          const isLastAttempt = index >= attempts.length - 1;
+          const shouldRetry =
+            !isLastAttempt &&
+            err.code !== err.PERMISSION_DENIED;
+
+          if (shouldRetry) {
+            tryAt(index + 1);
+            return;
+          }
+
+          reject(new Error(mapErrorMessage(err)));
+        },
+        attempts[index]
+      );
+    };
+
+    tryAt(0);
   });
+}
+
+export async function getLocationPermissionState(): Promise<PermissionState | "unsupported"> {
+  if (!navigator.permissions?.query) return "unsupported";
+  try {
+    const status = await navigator.permissions.query({ name: "geolocation" });
+    return status.state;
+  } catch {
+    return "unsupported";
+  }
 }
 
 // 距離を見やすい文字列に変換
