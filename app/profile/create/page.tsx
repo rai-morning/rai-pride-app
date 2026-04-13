@@ -1,462 +1,490 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, updateDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { calcDistance, formatDistance, getCurrentPosition } from "@/lib/location";
+import { getBlockedUsers } from "@/lib/block";
+import { getMutedUsers } from "@/lib/mute";
+import { getUserCommunityIds, getSharedCommunityUserIds, getCommunities, Community } from "@/lib/communities";
+import { updateLastOnline, isOnline } from "@/lib/online";
+import { getFavoritedUserIds } from "@/lib/favorites";
+import BottomNav from "@/components/BottomNav";
+import HamburgerMenuButton from "@/components/HamburgerMenuButton";
+
+const RADIUS_M = 500;
 
 type Position = "top" | "bottom" | "versatile" | "side";
+type DisplayMode = "all" | "community" | "favorites";
 
-const MAX_PROFILE_IMAGES = 3;
-const MAX_FACE_IMAGES = 3;
-const MAX_BODY_IMAGES = 3;
+type NearbyUser = {
+  uid: string;
+  name: string;
+  age: number;
+  height: number;
+  weight: number;
+  position: Position;
+  communityIds: string[];
+  images: string[];
+  distance: number;
+  lastOnline: Timestamp | null;
+};
 
-export default function ProfileCreatePage() {
+type FilterState = {
+  ageMin: string;
+  ageMax: string;
+  heightMin: string;
+  heightMax: string;
+  position: "all" | Position;
+  communityId: string;
+};
+
+const DEFAULT_FILTER: FilterState = {
+  ageMin: "", ageMax: "",
+  heightMin: "", heightMax: "",
+  position: "all",
+  communityId: "",
+};
+
+function countActiveFilters(f: FilterState): number {
+  return [f.ageMin, f.ageMax, f.heightMin, f.heightMax].filter(Boolean).length +
+    (f.position !== "all" ? 1 : 0) +
+    (f.communityId !== "" ? 1 : 0);
+}
+
+function applyFilters(users: NearbyUser[], f: FilterState, communityIds: Set<string>, mode: DisplayMode): NearbyUser[] {
+  return users.filter((u) => {
+    if (mode === "community" && !communityIds.has(u.uid)) return false;
+    if (f.ageMin && u.age < Number(f.ageMin)) return false;
+    if (f.ageMax && u.age > Number(f.ageMax)) return false;
+    if (f.heightMin && u.height < Number(f.heightMin)) return false;
+    if (f.heightMax && u.height > Number(f.heightMax)) return false;
+    if (f.position !== "all" && u.position !== f.position) return false;
+    if (f.communityId && !u.communityIds.includes(f.communityId)) return false;
+    return true;
+  });
+}
+
+export default function HomePage() {
   const router = useRouter();
-  const profileFileInputRef = useRef<HTMLInputElement>(null);
-  const faceFileInputRef = useRef<HTMLInputElement>(null);
-  const bodyFileInputRef = useRef<HTMLInputElement>(null);
-
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [name, setName] = useState("");
-  const [age, setAge] = useState("");
-  const [height, setHeight] = useState("");
-  const [weight, setWeight] = useState("");
-  const [position, setPosition] = useState<Position>("versatile");
-  const [hobby, setHobby] = useState("");
-  const [bio, setBio] = useState("");
-  const [instagramId, setInstagramId] = useState("");
-  const [tiktokId, setTiktokId] = useState("");
-  const [xId, setXId] = useState("");
+  const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "done" | "warn">("idle");        
+  const [locationWarning, setLocationWarning] = useState("");
+  const [allUsers, setAllUsers] = useState<NearbyUser[]>([]);
+  const [fetchingUsers, setFetchingUsers] = useState(false);
 
-  const [profileImageFiles, setProfileImageFiles] = useState<File[]>([]);
-  const [profilePreviews, setProfilePreviews] = useState<string[]>([]);
-  const [mainProfileIndex, setMainProfileIndex] = useState<number | null>(null);
-  const [faceImageFiles, setFaceImageFiles] = useState<File[]>([]);
-  const [bodyImageFiles, setBodyImageFiles] = useState<File[]>([]);
-  const [facePreviews, setFacePreviews] = useState<string[]>([]);
-  const [bodyPreviews, setBodyPreviews] = useState<string[]>([]);
-  const [uploadingIndexes, setUploadingIndexes] = useState<number[]>([]);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("all");
+  const [communityUserIds, setCommunityUserIds] = useState<Set<string>>(new Set());
+  const [favoriteUserIds, setFavoriteUserIds] = useState<Set<string>>(new Set());
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
+  const [pendingFilter, setPendingFilter] = useState<FilterState>(DEFAULT_FILTER);
+  const [myCommunities, setMyCommunities] = useState<Community[]>([]);
+
+  const activeFilterCount = countActiveFilters(filter);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        router.replace("/auth/login");
-      } else {
-        setUser(currentUser);
-        setAuthLoading(false);
-      }
+      if (!currentUser) { router.replace("/auth/login"); return; }
+      setUser(currentUser);
+      setAuthLoading(false);
+      updateLastOnline(currentUser.uid);
     });
     return () => unsubscribe();
   }, [router]);
 
-  const handleProfileFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const remaining = MAX_PROFILE_IMAGES - profileImageFiles.length;
-    const selected = files.slice(0, remaining);
-    setProfileImageFiles((prev) => [...prev, ...selected]);
-    selected.forEach((file) => {
-      const url = URL.createObjectURL(file);
-      setProfilePreviews((prev) => [...prev, url]);
-    });
-    if (mainProfileIndex === null && selected.length > 0) {
-      setMainProfileIndex(profileImageFiles.length);
-    }
-    e.target.value = "";
-  };
-
-  const handleFaceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const remaining = MAX_FACE_IMAGES - faceImageFiles.length;
-    const selected = files.slice(0, remaining);
-    setFaceImageFiles((prev) => [...prev, ...selected]);
-    selected.forEach((file) => {
-      const url = URL.createObjectURL(file);
-      setFacePreviews((prev) => [...prev, url]);
-    });
-    e.target.value = "";
-  };
-
-  const handleBodyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    if (!files.length) return;
-    const remaining = MAX_BODY_IMAGES - bodyImageFiles.length;
-    const selected = files.slice(0, remaining);
-    setBodyImageFiles((prev) => [...prev, ...selected]);
-    selected.forEach((file) => {
-      const url = URL.createObjectURL(file);
-      setBodyPreviews((prev) => [...prev, url]);
-    });
-    e.target.value = "";
-  };
-
-  const handleRemoveProfile = (index: number) => {
-    URL.revokeObjectURL(profilePreviews[index]);
-    setProfileImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setProfilePreviews((prev) => prev.filter((_, i) => i !== index));
-    setMainProfileIndex((prev) => {
-      if (prev === null) return null;
-      if (prev === index) return null;
-      if (prev > index) return prev - 1;
-      return prev;
-    });
-  };
-
-  const handleRemoveFace = (index: number) => {
-    URL.revokeObjectURL(facePreviews[index]);
-    setFaceImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setFacePreviews((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleRemoveBody = (index: number) => {
-    URL.revokeObjectURL(bodyPreviews[index]);
-    setBodyImageFiles((prev) => prev.filter((_, i) => i !== index));
-    setBodyPreviews((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const uploadImage = async (file: File, index: number): Promise<string> => {
-    setUploadingIndexes((prev) => [...prev, index]);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", "uibxdch7");
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/dcp0seihk/image/upload`,
-        { method: "POST", body: formData }
-      );
-      if (!response.ok) throw new Error("アップロード失敗");
-      const data = await response.json();
-      return data.secure_url as string;
-    } finally {
-      setUploadingIndexes((prev) => prev.filter((i) => i !== index));
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
     if (!user) return;
-    setError("");
-    setSaving(true);
-    try {
-      let profileImageUrls: string[] = [];
-      let faceImageUrls: string[] = [];
-      let bodyImageUrls: string[] = [];
-      if (profileImageFiles.length > 0 || faceImageFiles.length > 0 || bodyImageFiles.length > 0) {
-        setError("画像をアップロード中...");
-        const [uploadedProfile, uploadedFace, uploadedBody] = await Promise.all([
-          Promise.all(profileImageFiles.map((file, i) => uploadImage(file, i + 200))),
-          Promise.all(faceImageFiles.map((file, i) => uploadImage(file, i))),
-          Promise.all(bodyImageFiles.map((file, i) => uploadImage(file, i + 100))),
-        ]);
-        profileImageUrls = uploadedProfile;
-        faceImageUrls = uploadedFace;
-        bodyImageUrls = uploadedBody;
-        setError("");
-      }
-      const selectedMainImage =
-        mainProfileIndex !== null ? profileImageUrls[mainProfileIndex] : "";
-      const mainImage = selectedMainImage || profileImageUrls[0] || "";
-      const images = Array.from(new Set([mainImage, ...profileImageUrls].filter(Boolean)));
+    initLocation(user.uid);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
-      setError("プロフィールを保存中...");
-      await setDoc(doc(db, "users", user.uid), {
-        name, age: Number(age), height: Number(height), weight: Number(weight),
-        position,
-        hobby,
-        bio,
-        instagramId: instagramId.trim(),
-        tiktokId: tiktokId.trim(),
-        xId: xId.trim(),
-        profileImages: profileImageUrls,
-        faceImages: faceImageUrls,
-        bodyImages: bodyImageUrls,
-        albumVisibilityMode: "mutual_approval_simultaneous",
-        mainImage,
-        images,
-        createdAt: new Date(),
-      });
-      router.push("/home");
+  const initLocation = async (uid: string) => {
+    setLocationStatus("loading");
+    setLocationWarning("");
+    try {
+      const coords = await getCurrentPosition();
+      const { latitude, longitude } = coords;
+      try {
+        await updateDoc(doc(db, "users", uid), { location: { lat: latitude, lng: longitude } });
+      } catch (e) { console.warn("[Home] location保存失敗:", e); }
+      setLocationStatus("done");
+      await loadUsers(uid, latitude, longitude);
     } catch (err) {
-      console.error("保存エラー:", err);
-      setError(`保存に失敗しました: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setSaving(false);
+      const msg = err instanceof Error ? err.message : "位置情報を取得できませんでした";
+      console.warn("[Home] 位置情報エラー:", msg);
+      setLocationWarning(msg);
+      setLocationStatus("warn");
+      await loadUsers(uid, null, null);
     }
   };
+
+  const loadUsers = async (myUid: string, myLat: number | null, myLng: number | null) => {
+    setFetchingUsers(true);
+    try {
+      const [snapshot, blockedList, mutedList, myCommIds, allComms] = await Promise.all([
+        getDocs(collection(db, "users")),
+        getBlockedUsers(myUid),
+        getMutedUsers(myUid),
+        getUserCommunityIds(myUid),
+        getCommunities(),
+      ]);
+      const favoriteIds = await getFavoritedUserIds(myUid);
+
+      const sharedIds = await getSharedCommunityUserIds(myUid, myCommIds);
+      setCommunityUserIds(new Set(sharedIds));
+      setFavoriteUserIds(new Set(favoriteIds));
+      setMyCommunities(allComms.filter((c) => myCommIds.includes(c.id)));
+
+      const results: NearbyUser[] = [];
+      snapshot.forEach((docSnap) => {
+        if (docSnap.id === myUid) return;
+        if (blockedList.includes(docSnap.id)) return;
+        if (mutedList.includes(docSnap.id)) return;
+        const data = docSnap.data();
+        if (!data.name) return;
+
+        const entry: Omit<NearbyUser, "distance"> & { distance?: number } = {
+          uid: docSnap.id,
+          name: data.name,
+          age: data.age ?? 0,
+          height: data.height ?? 0,
+          weight: data.weight ?? 0,
+          position: (data.position as Position) ?? "versatile",
+          communityIds: (data.communities as string[]) ?? [],
+          images: data.images ?? [],
+          lastOnline: data.lastOnline ?? null,
+        };
+
+        if (myLat !== null && myLng !== null) {
+          if (!data.location?.lat || !data.location?.lng) return;
+          const dist = calcDistance(myLat, myLng, data.location.lat, data.location.lng);
+          if (dist <= RADIUS_M) results.push({ ...entry, distance: dist });
+        } else {
+          results.push({ ...entry, distance: -1 });
+        }
+      });
+
+      results.sort((a, b) => a.distance === -1 || b.distance === -1 ? 0 : a.distance - b.distance);
+      setAllUsers(results);
+    } finally {
+      setFetchingUsers(false);
+    }
+  };
+
+  const handleApplyFilter = () => { setFilter(pendingFilter); setFilterOpen(false); };
+  const handleResetFilter = () => { setPendingFilter(DEFAULT_FILTER); setFilter(DEFAULT_FILTER); setFilterOpen(false); };
+  const baseUsers = displayMode === "favorites"
+    ? allUsers
+        .filter((u) => favoriteUserIds.has(u.uid))
+        .sort((a, b) => {
+          const aDist = a.distance;
+          const bDist = b.distance;
+          if (aDist < 0 && bDist < 0) return 0;
+          if (aDist < 0) return 1;
+          if (bDist < 0) return -1;
+          return aDist - bDist;
+        })
+    : applyFilters(allUsers, filter, communityUserIds, displayMode);
+  const visibleUsers = baseUsers;
+  const isReady = locationStatus === "done" || locationStatus === "warn";
 
   if (authLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
-        <div className="w-8 h-8 border-4 border-[#ff2d78] border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-[#ff2d78] border-t-transparent rounded-full animate-spin" /> 
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0f] px-4 py-6">
-      <div className="w-full max-w-[390px] mx-auto">
-        {/* ロゴ */}
-        <div className="text-center mb-6">
-          <h1 className="text-3xl font-black tracking-widest text-[#00f5ff] neon-text-cyan">RAISE</h1>
-        </div>
+    <>
+      <main className="min-h-screen bg-[#0a0a0f] text-white flex flex-col pb-16">
+        {/* Header */}
+        <header className="bg-[#12121f] border-b border-[#ff2d78]/20 px-4 h-14 flex items-center justify-between shrink-0">
+          <h1 className="text-xl font-black tracking-widest text-[#00f5ff] neon-text-cyan">RAISE</h1>        
+          <div className="flex items-center gap-1">
+            {/* フィルターボタン */}
+            <button onClick={() => { setPendingFilter(filter); setFilterOpen(true); }}
+              className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-[#1a1a2e] transition" aria-label="フィルター">
+              <svg className={`w-5 h-5 ${activeFilterCount > 0 ? "text-[#ff2d78]" : "text-[#8888aa]"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              {activeFilterCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#ff2d78] text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            <HamburgerMenuButton />
+          </div>
+        </header>
 
-        <div className="bg-[#12121f] border border-[#ff2d78]/20 rounded-2xl shadow-xl p-6">
-          <h2 className="text-lg font-bold text-white text-center mb-1">プロフィール作成</h2>
-          <p className="text-[#8888aa] text-center text-sm mb-7">あなたのプロフィールを入力してください</p>
+        <div className="flex-1 px-4 py-4 w-full max-w-[480px] mx-auto">
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* 名前 */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">
-                名前 <span className="text-[#ff2d78]">*</span>
-              </label>
-              <input
-                type="text" value={name} onChange={(e) => setName(e.target.value)}
-                required placeholder="例：田中 太郎"
-                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
-              />
+          {/* 位置情報ステータス */}
+          {locationStatus === "loading" && (
+            <div className="flex items-center gap-2 text-[#00f5ff] text-sm mb-4">
+              <div className="w-4 h-4 border-2 border-[#00f5ff] border-t-transparent rounded-full animate-spin" />
+              位置情報を取得中...
             </div>
-
-            {/* 年齢・身長・体重 */}
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "年齢", unit: "歳", value: age, setter: setAge, max: 120, placeholder: "25" },
-                { label: "身長", unit: "cm", value: height, setter: setHeight, max: 300, placeholder: "170" },
-                { label: "体重", unit: "kg", value: weight, setter: setWeight, max: 500, placeholder: "65" },
-              ].map(({ label, unit, value, setter, max, placeholder }) => (
-                <div key={label}>
-                  <label className="block text-[#8888aa] text-sm font-medium mb-1.5">
-                    {label} <span className="text-[#ff2d78]">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number" value={value} onChange={(e) => setter(e.target.value)}
-                      required min={1} max={max} placeholder={placeholder}
-                      className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-2 py-3.5 pr-7 focus:outline-none focus:border-[#00f5ff] transition"
-                    />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[#8888aa] text-xs pointer-events-none">{unit}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* ポジション */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-2">
-                ポジション <span className="text-[#ff2d78]">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["top", "bottom", "versatile", "side"] as Position[]).map((p) => (
-                  <button key={p} type="button" onClick={() => setPosition(p)}
-                    className={`h-12 rounded-xl text-sm font-medium border transition ${
-                      position === p
-                        ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
-                        : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
-                    }`}
-                  >
-                    {p === "top" ? "Top" : p === "bottom" ? "Bottom" : p === "versatile" ? "Versatile" : "Side"}
-                  </button>
-                ))}
+          )}
+          {locationStatus === "warn" && locationWarning && (
+            <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-xl px-4 py-3 mb-4 flex items-start gap-2">
+              <svg className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <p className="text-yellow-400 text-xs">位置情報を取得できなかったため、距離表示なしで全ユーザーを表示しています</p>
+                <button onClick={() => user && initLocation(user.uid)} className="mt-1 text-[#00f5ff] text-xs underline">再試行</button>
               </div>
             </div>
+          )}
 
-            {/* 趣味 */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">趣味</label>
-              <input
-                type="text" value={hobby} onChange={(e) => setHobby(e.target.value)}
-                placeholder="例：映画鑑賞、ジム、料理"
-                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
-              />
+          {/* 表示モードタブ */}
+          {isReady && !fetchingUsers && (
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setDisplayMode("all")}
+                className={`h-8 px-4 rounded-full text-xs font-medium border transition ${displayMode === "all" ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white" : "bg-[#12121f] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"}`}>
+                全員
+              </button>
+              <button onClick={() => setDisplayMode("community")}
+                className={`h-8 px-4 rounded-full text-xs font-medium border transition flex items-center gap-1.5 ${displayMode === "community" ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white" : "bg-[#12121f] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                コミュニティ
+              </button>
+              <button onClick={() => setDisplayMode("favorites")}
+                className={`h-8 px-4 rounded-full text-xs font-medium border transition flex items-center gap-1.5 ${displayMode === "favorites" ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white" : "bg-[#12121f] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"}`}>
+                <svg className="w-3.5 h-3.5" fill={displayMode === "favorites" ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 3 13.274 3 10.5a4.5 4.5 0 018.145-2.579L12 9.17l.855-1.249A4.5 4.5 0 0121 10.5c0 2.774-1.688 4.86-3.989 7.007a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.218l-.022.012-.007.004-.003.001a.75.75 0 01-.704 0l-.003-.001z" />
+                </svg>
+                お気に入り
+              </button>
+              {activeFilterCount > 0 && (
+                <button onClick={handleResetFilter}
+                  className="h-8 px-3 rounded-full text-xs font-medium border border-[#ff2d78]/50 text-[#ff2d78] bg-[#ff2d78]/10 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  フィルター解除
+                </button>
+              )}
             </div>
+          )}
 
-            {/* 自己紹介 */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">自己紹介</label>
-              <textarea
-                value={bio} onChange={(e) => setBio(e.target.value)} rows={4}
-                placeholder="自由に自己紹介を書いてください..."
-                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition resize-none"
-              />
+          {fetchingUsers && (
+            <div className="flex items-center gap-2 text-[#8888aa] text-sm mb-4">
+              <div className="w-4 h-4 border-2 border-[#ff2d78] border-t-transparent rounded-full animate-spin" />
+              ユーザーを検索中...
             </div>
+          )}
 
-            {/* SNSアカウント */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">Instagram ID</label>
-              <input
-                type="text" value={instagramId} onChange={(e) => setInstagramId(e.target.value)}
-                placeholder="例：raise_official"
-                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
-              />
+          {isReady && !fetchingUsers && (
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-white font-semibold text-base">
+                {displayMode === "favorites" ? "お気に入りユーザー" : displayMode === "community" ? "コミュニティメンバー" : locationStatus === "warn" ? "ユーザー一覧" : "近くのユーザー"}
+                {visibleUsers.length > 0 && <span className="ml-2 text-[#ff2d78] text-sm font-normal">{visibleUsers.length}人</span>}
+              </h2>
+              {locationStatus === "done" && displayMode === "all" && (
+                <span className="text-[#8888aa] text-xs">半径500m以内</span>
+              )}
             </div>
+          )}
 
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">TikTok ID</label>
-              <input
-                type="text" value={tiktokId} onChange={(e) => setTiktokId(e.target.value)}
-                placeholder="例：raise_tok"
-                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-1.5">X（旧Twitter）ID</label>
-              <input
-                type="text" value={xId} onChange={(e) => setXId(e.target.value)}
-                placeholder="例：raise_x"
-                className="w-full bg-[#0d0d1a] text-white text-base placeholder-[#8888aa] border border-[#ff2d78]/20 rounded-xl px-4 py-3.5 focus:outline-none focus:border-[#00f5ff] transition"
-              />
-            </div>
-
-            {/* プロフィール写真 */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-2">
-                プロフィール写真 <span className="text-[#8888aa] font-normal">（最大{MAX_PROFILE_IMAGES}枚）</span>
-              </label>
-              {profilePreviews.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {profilePreviews.map((src, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-[#ff2d78]/30">
-                      <Image src={src} alt={`プロフィール写真 ${i + 1}`} fill className="object-cover" unoptimized />
-                      {mainProfileIndex === i && (
-                        <span className="absolute bottom-1.5 left-1.5 bg-[#ff2d78]/90 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-md pointer-events-none">メイン</span>
-                      )}
-                      {uploadingIndexes.includes(i + 200) && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <div className="w-5 h-5 border-2 border-[#ff2d78] border-t-transparent rounded-full animate-spin" />
+          {/* カードグリッド */}
+          {isReady && !fetchingUsers && visibleUsers.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              {visibleUsers.map((u) => {
+                const online = isOnline(u.lastOnline);
+                return (
+                  <button key={u.uid} onClick={() => router.push(`/profile/${u.uid}`)}
+                    className="bg-[#12121f] border border-[#ff2d78]/20 hover:border-[#ff2d78]/50 rounded-2xl overflow-hidden text-left active:scale-95 transition-all">
+                    <div className="relative w-full aspect-[3/4] bg-[#0d0d1a]">
+                      {u.images[0] ? (
+                        <Image src={u.images[0]} alt={u.name} fill className="object-cover" unoptimized />   
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg className="w-10 h-10 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
                         </div>
                       )}
-                      {!uploadingIndexes.includes(i + 200) && (
-                        <button type="button" onClick={() => handleRemoveProfile(i)}
-                          className="absolute top-1 right-1 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center text-white text-xs z-10"
-                          aria-label="削除">✕</button>
+                      {/* オンラインバッジ */}
+                      {online && (
+                        <div className="absolute top-2 right-2 w-3 h-3 bg-green-400 rounded-full border-2 border-[#12121f]" />
                       )}
-                      <button type="button" onClick={() => setMainProfileIndex(i)}
-                        className="absolute top-1 left-1 h-6 px-2 bg-black/70 rounded-md text-white text-[10px]">
-                        メインに設定
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {profileImageFiles.length < MAX_PROFILE_IMAGES && (
-                <>
-                  <input ref={profileFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleProfileFileChange} />
-                  <button type="button" onClick={() => profileFileInputRef.current?.click()}
-                    className="w-full h-12 bg-[#0d0d1a] border border-dashed border-[#ff2d78]/40 hover:border-[#ff2d78] text-[#8888aa] hover:text-[#ff2d78] text-sm rounded-xl transition flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    プロフィール写真を追加（あと{MAX_PROFILE_IMAGES - profileImageFiles.length}枚）
-                  </button>
-                </>
-              )}
-            </div>
-
-            <div className="rounded-xl border border-[#00f5ff]/30 bg-[#00f5ff]/5 px-3 py-2.5">
-              <p className="text-[#00f5ff] text-xs font-medium">顔・体アルバム公開設定</p>
-              <p className="text-[#9aa7b1] text-xs mt-1">相互承認で同時公開（固定）</p>
-            </div>
-
-            {/* 顔アルバム */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-2">
-                顔アルバム <span className="text-[#8888aa] font-normal">（最大{MAX_FACE_IMAGES}枚）</span>
-              </label>
-              {facePreviews.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {facePreviews.map((src, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-[#ff2d78]/30">
-                      <Image src={src} alt={`プレビュー ${i + 1}`} fill className="object-cover" unoptimized />
-                      {uploadingIndexes.includes(i) && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <div className="w-5 h-5 border-2 border-[#ff2d78] border-t-transparent rounded-full animate-spin" />
+                      {/* 距離バッジ */}
+                      {u.distance >= 0 && (
+                        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm rounded-full px-2 py-0.5 border border-[#ff2d78]/20">
+                          <span className="text-white text-xs font-medium">{formatDistance(u.distance)}</span>
                         </div>
                       )}
-                      {!uploadingIndexes.includes(i) && (
-                        <button type="button" onClick={() => handleRemoveFace(i)}
-                          className="absolute top-1 right-1 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center text-white text-xs z-10"
-                          aria-label="削除">✕</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {faceImageFiles.length < MAX_FACE_IMAGES && (
-                <>
-                  <input ref={faceFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFaceFileChange} />
-                  <button type="button" onClick={() => faceFileInputRef.current?.click()}
-                    className="w-full h-12 bg-[#0d0d1a] border border-dashed border-[#ff2d78]/40 hover:border-[#ff2d78] text-[#8888aa] hover:text-[#ff2d78] text-sm rounded-xl transition flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    顔写真を追加（あと{MAX_FACE_IMAGES - faceImageFiles.length}枚）
-                  </button>
-                </>
-              )}
-            </div>
-
-            {/* 体アルバム */}
-            <div>
-              <label className="block text-[#8888aa] text-sm font-medium mb-2">
-                体アルバム <span className="text-[#8888aa] font-normal">（最大{MAX_BODY_IMAGES}枚）</span>
-              </label>
-              {bodyPreviews.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {bodyPreviews.map((src, i) => (
-                    <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-[#00f5ff]/40">
-                      <Image src={src} alt={`体プレビュー ${i + 1}`} fill className="object-cover" unoptimized />
-                      {uploadingIndexes.includes(i + 100) && (
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                          <div className="w-5 h-5 border-2 border-[#ff2d78] border-t-transparent rounded-full animate-spin" />
+                      {/* コミュニティバッジ */}
+                      {communityUserIds.has(u.uid) && (
+                        <div className="absolute top-2 left-2 bg-[#bf00ff]/70 backdrop-blur-sm rounded-full p-1 border border-[#bf00ff]/40">
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
                         </div>
                       )}
-                      {!uploadingIndexes.includes(i + 100) && (
-                        <button type="button" onClick={() => handleRemoveBody(i)}
-                          className="absolute top-1 right-1 w-6 h-6 bg-black/70 rounded-full flex items-center justify-center text-white text-xs z-10"
-                          aria-label="削除">✕</button>
-                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-              {bodyImageFiles.length < MAX_BODY_IMAGES && (
-                <>
-                  <input ref={bodyFileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleBodyFileChange} />
-                  <button type="button" onClick={() => bodyFileInputRef.current?.click()}
-                    className="w-full h-12 bg-[#0d0d1a] border border-dashed border-[#00f5ff]/40 hover:border-[#00f5ff] text-[#8888aa] hover:text-[#00f5ff] text-sm rounded-xl transition flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    体写真を追加（あと{MAX_BODY_IMAGES - bodyImageFiles.length}枚）
+                    <div className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-white text-sm font-semibold truncate">{u.name}</p>
+                        {online && <span className="shrink-0 text-[10px] text-green-400 font-medium">●</span>}
+                      </div>
+                      <p className="text-[#8888aa] text-xs mt-0.5">{u.age}歳</p>
+                    </div>
                   </button>
-                </>
-              )}
+                );
+              })}
             </div>
+          )}
 
-            {error && (
-              <p className="text-red-400 text-sm text-center bg-red-900/20 border border-red-800 rounded-xl px-4 py-3">
-                {error}
+          {/* 空状態 */}
+          {isReady && !fetchingUsers && visibleUsers.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 bg-[#12121f] border border-[#ff2d78]/20 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /> 
+                </svg>
+              </div>
+              <p className="text-white font-medium mb-1">ユーザーが見つかりません</p>
+              <p className="text-[#8888aa] text-sm mb-5">
+                {activeFilterCount > 0 ? "フィルター条件に合うユーザーがいません" : "近くにユーザーがいませんでした"}
               </p>
-            )}
-
-            <button type="submit" disabled={saving}
-              className="w-full h-12 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 active:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed text-white text-base font-semibold rounded-xl transition flex items-center justify-center gap-2">
-              {saving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-              {saving ? "保存中..." : "プロフィールを保存"}
-            </button>
-          </form>
+              {activeFilterCount > 0 ? (
+                <button onClick={handleResetFilter}
+                  className="h-10 px-6 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 text-white text-sm font-medium rounded-xl transition">
+                  フィルターをリセット
+                </button>
+              ) : (
+                <button onClick={() => user && initLocation(user.uid)}
+                  className="h-10 px-6 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 text-white text-sm font-medium rounded-xl transition">
+                  再検索
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      </div>
-    </main>
+      </main>
+
+      {/* フィルタードロワー */}
+      {filterOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setFilterOpen(false)}>
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="relative w-full max-w-[480px] bg-[#12121f] border border-[#ff2d78]/20 rounded-t-2xl px-5 pt-4 pb-8 max-h-[85vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-[#ff2d78]/30 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-white font-bold text-base">絞り込み</h2>
+              <button onClick={() => setFilterOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#1a1a2e] transition">
+                <svg className="w-4 h-4 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {/* 年齢 */}
+              <div>
+                <p className="text-[#8888aa] text-sm font-medium mb-2">年齢</p>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={18} max={100} value={pendingFilter.ageMin}
+                    onChange={(e) => setPendingFilter((f) => ({ ...f, ageMin: e.target.value }))}
+                    placeholder="最小"
+                    className="flex-1 bg-[#0d0d1a] text-white text-sm border border-[#ff2d78]/20 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#00f5ff] transition" />
+                  <span className="text-[#8888aa] text-sm">〜</span>
+                  <input type="number" min={18} max={100} value={pendingFilter.ageMax}
+                    onChange={(e) => setPendingFilter((f) => ({ ...f, ageMax: e.target.value }))}
+                    placeholder="最大"
+                    className="flex-1 bg-[#0d0d1a] text-white text-sm border border-[#ff2d78]/20 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#00f5ff] transition" />
+                  <span className="text-[#8888aa] text-xs">歳</span>
+                </div>
+              </div>
+
+              {/* 身長 */}
+              <div>
+                <p className="text-[#8888aa] text-sm font-medium mb-2">身長</p>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={140} max={220} value={pendingFilter.heightMin}
+                    onChange={(e) => setPendingFilter((f) => ({ ...f, heightMin: e.target.value }))}
+                    placeholder="最小"
+                    className="flex-1 bg-[#0d0d1a] text-white text-sm border border-[#ff2d78]/20 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#00f5ff] transition" />
+                  <span className="text-[#8888aa] text-sm">〜</span>
+                  <input type="number" min={140} max={220} value={pendingFilter.heightMax}
+                    onChange={(e) => setPendingFilter((f) => ({ ...f, heightMax: e.target.value }))}
+                    placeholder="最大"
+                    className="flex-1 bg-[#0d0d1a] text-white text-sm border border-[#ff2d78]/20 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#00f5ff] transition" />
+                  <span className="text-[#8888aa] text-xs">cm</span>
+                </div>
+              </div>
+
+              {/* ポジション */}
+              <div>
+                <p className="text-[#8888aa] text-sm font-medium mb-2">ポジション</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["all", "top", "bottom", "versatile", "side"] as const).map((p) => (
+                    <button key={p} type="button" onClick={() => setPendingFilter((f) => ({ ...f, position: p }))}
+                      className={`h-10 rounded-xl text-xs font-medium border transition ${
+                        pendingFilter.position === p
+                          ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                          : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"      
+                      }`}>
+                      {p === "all" ? "すべて" : p === "top" ? "Top" : p === "bottom" ? "Bottom" : p === "versatile" ? "Versatile" : "Side"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* コミュニティ */}
+              {myCommunities.length > 0 && (
+                <div>
+                  <p className="text-[#8888aa] text-sm font-medium mb-2">コミュニティ</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setPendingFilter((f) => ({ ...f, communityId: "" }))}
+                      className={`h-8 px-3 rounded-full text-xs font-medium border transition ${
+                        pendingFilter.communityId === ""
+                          ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                          : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"      
+                      }`}>すべて</button>
+                    {myCommunities.map((c) => (
+                      <button key={c.id} onClick={() => setPendingFilter((f) => ({ ...f, communityId: c.id }))}
+                        className={`h-8 px-3 rounded-full text-xs font-medium border transition ${
+                          pendingFilter.communityId === c.id
+                            ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                            : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"    
+                        }`}>{c.name}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={handleResetFilter}
+                className="flex-1 h-11 bg-[#0d0d1a] border border-[#ff2d78]/20 hover:border-[#ff2d78]/50 text-[#8888aa] text-sm font-medium rounded-xl transition">
+                リセット
+              </button>
+              <button onClick={handleApplyFilter}
+                className="flex-1 h-11 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 text-white text-sm font-semibold rounded-xl transition">
+                適用する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <BottomNav />
+    </>
   );
 }
