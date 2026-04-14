@@ -25,6 +25,7 @@ const policyItems = [
 
 const accountItems = [
   { label: "通知設定", href: "/menu/notifications-settings" },
+  { label: "アルバム", href: "/menu/album" },
   { label: "ブロック/ミュート管理", href: "/menu/safety" },
   { label: "退会", href: "/menu/withdraw", danger: true },
 ];
