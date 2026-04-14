@@ -59,12 +59,12 @@ const TABS = [
 ] as const;
 
 export default function BottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const router = useRouter();
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
 
-  if (pathname.startsWith("/auth/")) return null;
+  if (!pathname || pathname.startsWith("/auth/")) return null;
 
   useEffect(() => {
     let unsubDm: (() => void) | null = null;
