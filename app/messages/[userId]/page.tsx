@@ -34,9 +34,11 @@ export default function ChatPage() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendingImage, setSendingImage] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -91,10 +93,44 @@ export default function ChatPage() {
     setText("");
     setSending(true);
     try {
-      await sendMessage(conversationId, user.uid, msg, otherUid);
+      await sendMessage(conversationId, user.uid, { text: msg }, otherUid);
     } finally {
       setSending(false);
       inputRef.current?.focus();
+    }
+  };
+
+  const uploadChatImage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", "uibxdch7");
+    const response = await fetch("https://api.cloudinary.com/v1_1/dcp0seihk/image/upload", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("画像アップロードに失敗しました");
+    const data = await response.json();
+    return data.secure_url as string;
+  };
+
+  const handlePickImage = () => {
+    if (isBlocked || sending || sendingImage) return;
+    imageInputRef.current?.click();
+  };
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !conversationId || !user || isBlocked) return;
+    setSendingImage(true);
+    try {
+      const imageUrl = await uploadChatImage(file);
+      await sendMessage(conversationId, user.uid, { imageUrl }, otherUid);
+    } catch (err) {
+      console.error("画像送信失敗:", err);
+      alert("画像の送信に失敗しました");
+    } finally {
+      setSendingImage(false);
     }
   };
 
@@ -209,7 +245,18 @@ export default function ChatPage() {
                   {msg.isDeleted ? (
                     <span className="italic text-gray-400">このメッセージは削除されました</span>
                   ) : (
-                    msg.text
+                    <div className="space-y-2">
+                      {msg.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => window.open(msg.imageUrl, "_blank", "noopener,noreferrer")}
+                          className="block relative w-48 h-48 rounded-xl overflow-hidden border border-white/20"
+                        >
+                          <Image src={msg.imageUrl} alt="送信画像" fill className="object-cover" unoptimized />
+                        </button>
+                      )}
+                      {msg.text && <p>{msg.text}</p>}
+                    </div>
                   )}
                 </div>
               </div>
@@ -223,13 +270,35 @@ export default function ChatPage() {
       <div className="bg-[#12121f] border-t border-[#ff2d78]/20 px-4 py-3 shrink-0">
         <div className="flex items-center gap-2 max-w-[480px] mx-auto">
           <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageChange}
+          />
+          <button
+            type="button"
+            onClick={handlePickImage}
+            disabled={isBlocked || sending || sendingImage}
+            className="w-10 h-10 bg-[#0d0d1a] border border-[#ff2d78]/20 hover:border-[#00f5ff] disabled:opacity-30 disabled:cursor-not-allowed text-[#00f5ff] rounded-full flex items-center justify-center transition shrink-0"
+            aria-label="画像を送信"
+          >
+            {sendingImage ? (
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            )}
+          </button>
+          <input
             ref={inputRef} type="text" value={text}
             onChange={(e) => setText(e.target.value)} onKeyDown={handleKeyDown}
-            disabled={isBlocked}
+            disabled={isBlocked || sendingImage}
             placeholder={isBlocked ? "ブロック中のためメッセージを送れません" : "メッセージを入力..."}
             className="flex-1 bg-[#0d0d1a] text-white text-sm placeholder-[#8888aa] border border-[#ff2d78]/20 focus:border-[#00f5ff] disabled:opacity-40 disabled:cursor-not-allowed rounded-full px-4 py-2.5 outline-none transition"
           />
-          <button onClick={handleSend} disabled={!text.trim() || sending || isBlocked}
+          <button onClick={handleSend} disabled={!text.trim() || sending || isBlocked || sendingImage}
             className="w-10 h-10 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 active:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition shrink-0"
             aria-label="送信">
             {sending ? (

@@ -19,6 +19,7 @@ export type Message = {
   id: string;
   senderId: string;
   text: string;
+  imageUrl?: string;
   createdAt: Timestamp | null;
   isDeleted: boolean;
 };
@@ -110,12 +111,17 @@ export function subscribeMessages(
 export async function sendMessage(
   conversationId: string,
   senderId: string,
-  text: string,
+  payload: { text?: string; imageUrl?: string },
   otherUid: string
 ): Promise<void> {
+  const text = (payload.text ?? "").trim();
+  const imageUrl = payload.imageUrl ?? "";
+  if (!text && !imageUrl) return;
+
   await addDoc(collection(db, "messages", conversationId, "msgs"), {
     senderId,
     text,
+    imageUrl: imageUrl || null,
     createdAt: serverTimestamp(),
     isDeleted: false,
   });
@@ -123,8 +129,9 @@ export async function sendMessage(
   const convRef = doc(db, "conversations", conversationId);
   const convSnap = await getDoc(convRef);
   const prev = (convSnap.data()?.unreadCount ?? {}) as Record<string, number>;
+  const lastMessagePreview = text || "画像を送信しました";
   await updateDoc(convRef, {
-    lastMessage: text,
+    lastMessage: lastMessagePreview,
     lastMessageAt: serverTimestamp(),
     unreadCount: {
       ...prev,
