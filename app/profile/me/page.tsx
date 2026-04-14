@@ -183,7 +183,7 @@ export default function MyProfilePage() {
                     { label: "髪型", value: profile.hairStyle },
                     { label: "好み年齢", value: profile.preferredAge },
                   ]
-                    .filter((item): item is { label: string; value: string } => Boolean(item.value))
+                    .filter((item) => Boolean(item.value))
                     .map(({ label, value }) => (
                       <div key={label} className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-3 py-3 text-center">
                         <p className="text-[#8888aa] text-xs mb-1">{label}</p>
