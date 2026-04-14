@@ -21,6 +21,9 @@ type OtherUser = {
   image: string;
 };
 
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_EDGE = 1600; // スマホ向け長辺
+
 export default function ChatPage() {
   const params = useParams();
   const otherUid = params.userId as string;
@@ -101,8 +104,13 @@ export default function ChatPage() {
   };
 
   const uploadChatImage = async (file: File): Promise<string> => {
+    const optimized = await optimizeImageForChat(file);
+    if (optimized.size > MAX_UPLOAD_BYTES) {
+      throw new Error("画像サイズが大きすぎます（5MB以下にしてください）");
+    }
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", optimized);
     formData.append("upload_preset", "uibxdch7");
     const response = await fetch("https://api.cloudinary.com/v1_1/dcp0seihk/image/upload", {
       method: "POST",
@@ -111,6 +119,48 @@ export default function ChatPage() {
     if (!response.ok) throw new Error("画像アップロードに失敗しました");
     const data = await response.json();
     return data.secure_url as string;
+  };
+
+  const optimizeImageForChat = async (file: File): Promise<File> => {
+    const imageUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new window.Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+        image.src = imageUrl;
+      });
+
+      const maxEdge = Math.max(img.width, img.height);
+      const scale = maxEdge > MAX_IMAGE_EDGE ? MAX_IMAGE_EDGE / maxEdge : 1;
+      const targetWidth = Math.max(1, Math.round(img.width * scale));
+      const targetHeight = Math.max(1, Math.round(img.height * scale));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("画像処理に失敗しました");
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => {
+            if (!b) {
+              reject(new Error("画像変換に失敗しました"));
+              return;
+            }
+            resolve(b);
+          },
+          "image/jpeg",
+          0.85
+        );
+      });
+
+      return new File([blob], `chat_${Date.now()}.jpg`, { type: "image/jpeg" });
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
   };
 
   const handlePickImage = () => {
@@ -122,6 +172,10 @@ export default function ChatPage() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !conversationId || !user || isBlocked) return;
+    if (!file.type.startsWith("image/")) {
+      alert("画像ファイルを選択してください");
+      return;
+    }
     setSendingImage(true);
     try {
       const imageUrl = await uploadChatImage(file);
