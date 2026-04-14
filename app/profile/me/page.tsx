@@ -17,6 +17,9 @@ type ProfileData = {
   height: number;
   weight: number;
   position: Position;
+  bodyType?: "細い" | "スジ筋" | "普通" | "筋肉質" | "ポチャ";
+  hairStyle?: "坊主" | "短髪" | "前髪" | "パーマ" | "ロング";
+  preferredAge?: "歳上好き" | "歳下好き" | "同世代" | "なんでも";
   livingArea?: string;
   bio: string;
   instagramId?: string;
@@ -171,6 +174,24 @@ export default function MyProfilePage() {
                   </div>
                 ))}
               </div>
+
+              {/* 体型・髪型・好み年齢 */}
+              {(profile.bodyType || profile.hairStyle || profile.preferredAge) && (
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: "体型", value: profile.bodyType },
+                    { label: "髪型", value: profile.hairStyle },
+                    { label: "好み年齢", value: profile.preferredAge },
+                  ]
+                    .filter((item): item is { label: string; value: string } => Boolean(item.value))
+                    .map(({ label, value }) => (
+                      <div key={label} className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-3 py-3 text-center">
+                        <p className="text-[#8888aa] text-xs mb-1">{label}</p>
+                        <p className="text-white text-sm font-semibold">{value}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
 
               {/* 生活地域 */}
               {profile.livingArea && (

@@ -18,6 +18,9 @@ import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 const RADIUS_M = 100_000;
 
 type Position = "top" | "bottom" | "versatile" | "side";
+type BodyType = "細い" | "スジ筋" | "普通" | "筋肉質" | "ポチャ";
+type HairStyle = "坊主" | "短髪" | "前髪" | "パーマ" | "ロング";
+type PreferredAge = "歳上好き" | "歳下好き" | "同世代" | "なんでも";
 type DisplayMode = "all" | "community" | "favorites";
 
 type NearbyUser = {
@@ -27,6 +30,9 @@ type NearbyUser = {
   height: number;
   weight: number;
   position: Position;
+  bodyType?: BodyType;
+  hairStyle?: HairStyle;
+  preferredAge?: PreferredAge;
   communityIds: string[];
   images: string[];
   distance: number;
@@ -39,19 +45,32 @@ type FilterState = {
   heightMin: string;
   heightMax: string;
   position: "all" | Position;
+  bodyType: "all" | BodyType;
+  hairStyle: "all" | HairStyle;
+  preferredAge: "all" | PreferredAge;
   communityId: string;
 };
+
+const BODY_TYPE_OPTIONS: Array<"all" | BodyType> = ["all", "細い", "スジ筋", "普通", "筋肉質", "ポチャ"];
+const HAIR_STYLE_OPTIONS: Array<"all" | HairStyle> = ["all", "坊主", "短髪", "前髪", "パーマ", "ロング"];
+const PREFERRED_AGE_OPTIONS: Array<"all" | PreferredAge> = ["all", "歳上好き", "歳下好き", "同世代", "なんでも"];
 
 const DEFAULT_FILTER: FilterState = {
   ageMin: "", ageMax: "",
   heightMin: "", heightMax: "",
   position: "all",
+  bodyType: "all",
+  hairStyle: "all",
+  preferredAge: "all",
   communityId: "",
 };
 
 function countActiveFilters(f: FilterState): number {
   return [f.ageMin, f.ageMax, f.heightMin, f.heightMax].filter(Boolean).length +
     (f.position !== "all" ? 1 : 0) +
+    (f.bodyType !== "all" ? 1 : 0) +
+    (f.hairStyle !== "all" ? 1 : 0) +
+    (f.preferredAge !== "all" ? 1 : 0) +
     (f.communityId !== "" ? 1 : 0);
 }
 
@@ -63,6 +82,9 @@ function applyFilters(users: NearbyUser[], f: FilterState, communityIds: Set<str
     if (f.heightMin && u.height < Number(f.heightMin)) return false;
     if (f.heightMax && u.height > Number(f.heightMax)) return false;
     if (f.position !== "all" && u.position !== f.position) return false;
+    if (f.bodyType !== "all" && u.bodyType !== f.bodyType) return false;
+    if (f.hairStyle !== "all" && u.hairStyle !== f.hairStyle) return false;
+    if (f.preferredAge !== "all" && u.preferredAge !== f.preferredAge) return false;
     if (f.communityId && !u.communityIds.includes(f.communityId)) return false;
     return true;
   });
@@ -188,6 +210,9 @@ export default function HomePage() {
           height: data.height ?? 0,
           weight: data.weight ?? 0,
           position: (data.position as Position) ?? "versatile",
+          bodyType: data.bodyType as BodyType | undefined,
+          hairStyle: data.hairStyle as HairStyle | undefined,
+          preferredAge: data.preferredAge as PreferredAge | undefined,
           communityIds: (data.communities as string[]) ?? [],
           images: data.images ?? [],
           lastOnline: data.lastOnline ?? null,
@@ -478,6 +503,69 @@ export default function HomePage() {
                           : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
                       }`}>
                       {p === "all" ? "すべて" : p === "top" ? "Top" : p === "bottom" ? "Bottom" : p === "versatile" ? "Versatile" : "Side"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 体型 */}
+              <div>
+                <p className="text-[#8888aa] text-sm font-medium mb-2">体型</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {BODY_TYPE_OPTIONS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPendingFilter((f) => ({ ...f, bodyType: value }))}
+                      className={`h-10 rounded-xl text-xs font-medium border transition ${
+                        pendingFilter.bodyType === value
+                          ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                          : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
+                      }`}
+                    >
+                      {value === "all" ? "すべて" : value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 髪型 */}
+              <div>
+                <p className="text-[#8888aa] text-sm font-medium mb-2">髪型</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {HAIR_STYLE_OPTIONS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPendingFilter((f) => ({ ...f, hairStyle: value }))}
+                      className={`h-10 rounded-xl text-xs font-medium border transition ${
+                        pendingFilter.hairStyle === value
+                          ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                          : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
+                      }`}
+                    >
+                      {value === "all" ? "すべて" : value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 好み年齢 */}
+              <div>
+                <p className="text-[#8888aa] text-sm font-medium mb-2">好み年齢</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PREFERRED_AGE_OPTIONS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPendingFilter((f) => ({ ...f, preferredAge: value }))}
+                      className={`h-10 rounded-xl text-xs font-medium border transition ${
+                        pendingFilter.preferredAge === value
+                          ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                          : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
+                      }`}
+                    >
+                      {value === "all" ? "すべて" : value}
                     </button>
                   ))}
                 </div>

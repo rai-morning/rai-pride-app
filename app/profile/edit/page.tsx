@@ -9,10 +9,16 @@ import { auth, db } from "@/lib/firebase";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 type Position = "top" | "bottom" | "versatile" | "side";
+type BodyType = "細い" | "スジ筋" | "普通" | "筋肉質" | "ポチャ";
+type HairStyle = "坊主" | "短髪" | "前髪" | "パーマ" | "ロング";
+type PreferredAge = "歳上好き" | "歳下好き" | "同世代" | "なんでも";
 
 const MAX_PROFILE_IMAGES = 3;
 const MAX_FACE_IMAGES = 3;
 const MAX_BODY_IMAGES = 3;
+const BODY_TYPE_OPTIONS: BodyType[] = ["細い", "スジ筋", "普通", "筋肉質", "ポチャ"];
+const HAIR_STYLE_OPTIONS: HairStyle[] = ["坊主", "短髪", "前髪", "パーマ", "ロング"];
+const PREFERRED_AGE_OPTIONS: PreferredAge[] = ["歳上好き", "歳下好き", "同世代", "なんでも"];
 
 export default function ProfileEditPage() {
   const router = useRouter();
@@ -29,6 +35,9 @@ export default function ProfileEditPage() {
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
   const [position, setPosition] = useState<Position>("versatile");
+  const [bodyType, setBodyType] = useState<BodyType | "">("");
+  const [hairStyle, setHairStyle] = useState<HairStyle | "">("");
+  const [preferredAge, setPreferredAge] = useState<PreferredAge | "">("");
   const [livingArea, setLivingArea] = useState("");
   const [bio, setBio] = useState("");
   const [instagramId, setInstagramId] = useState("");
@@ -76,6 +85,9 @@ export default function ProfileEditPage() {
         setHeight(String(d.height ?? ""));
         setWeight(String(d.weight ?? ""));
         setPosition((d.position as Position) ?? "versatile");
+        setBodyType((d.bodyType as BodyType) ?? "");
+        setHairStyle((d.hairStyle as HairStyle) ?? "");
+        setPreferredAge((d.preferredAge as PreferredAge) ?? "");
         setLivingArea(d.livingArea ?? d.hobby ?? "");
         setBio(d.bio ?? "");
         setInstagramId(d.instagramId ?? "");
@@ -238,6 +250,9 @@ export default function ProfileEditPage() {
       await setDoc(doc(db, "users", user.uid), {
         name, age: Number(age), height: Number(height), weight: Number(weight),
         position,
+        bodyType,
+        hairStyle,
+        preferredAge,
         livingArea: livingArea.trim(),
         bio,
         instagramId: instagramId.trim(),
@@ -328,6 +343,69 @@ export default function ProfileEditPage() {
                       : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
                   }`}>
                   {p === "top" ? "Top" : p === "bottom" ? "Bottom" : p === "versatile" ? "Versatile" : "Side"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 体型 */}
+          <div>
+            <label className="block text-[#8888aa] text-sm font-medium mb-2">体型</label>
+            <div className="grid grid-cols-3 gap-2">
+              {BODY_TYPE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setBodyType(option)}
+                  className={`h-10 rounded-xl text-xs font-medium border transition ${
+                    bodyType === option
+                      ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                      : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 髪型 */}
+          <div>
+            <label className="block text-[#8888aa] text-sm font-medium mb-2">髪型</label>
+            <div className="grid grid-cols-3 gap-2">
+              {HAIR_STYLE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setHairStyle(option)}
+                  className={`h-10 rounded-xl text-xs font-medium border transition ${
+                    hairStyle === option
+                      ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                      : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 好み年齢 */}
+          <div>
+            <label className="block text-[#8888aa] text-sm font-medium mb-2">好み年齢</label>
+            <div className="grid grid-cols-2 gap-2">
+              {PREFERRED_AGE_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setPreferredAge(option)}
+                  className={`h-10 rounded-xl text-xs font-medium border transition ${
+                    preferredAge === option
+                      ? "bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] border-[#7a5cff] text-white"
+                      : "bg-[#0d0d1a] border-[#ff2d78]/20 text-[#8888aa] hover:border-[#ff2d78]/50"
+                  }`}
+                >
+                  {option}
                 </button>
               ))}
             </div>

@@ -23,6 +23,9 @@ type ProfileData = {
   height: number;
   weight: number;
   position: Position;
+  bodyType?: "細い" | "スジ筋" | "普通" | "筋肉質" | "ポチャ";
+  hairStyle?: "坊主" | "短髪" | "前髪" | "パーマ" | "ロング";
+  preferredAge?: "歳上好き" | "歳下好き" | "同世代" | "なんでも";
   livingArea?: string;
   bio: string;
   instagramId?: string;
@@ -363,6 +366,22 @@ export default function ProfileDetailPage() {
               { label: "ポジション", value: POSITION_LABEL[p.position], hidden: isBlocked },
             ]
               .filter((item) => !item.hidden)
+              .map(({ label, value }) => (
+                <div key={label} className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-3 py-3 text-center">
+                  <p className="text-[#8888aa] text-xs mb-1">{label}</p>
+                  <p className="text-white text-sm font-semibold">{value}</p>
+                </div>
+              ))}
+          </div>
+
+          {/* 体型・髪型・好み年齢 */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "体型", value: p.bodyType, hidden: isBlocked },
+              { label: "髪型", value: p.hairStyle, hidden: isBlocked },
+              { label: "好み年齢", value: p.preferredAge, hidden: isBlocked },
+            ]
+              .filter((item): item is { label: string; value: string; hidden: boolean } => !item.hidden && Boolean(item.value))
               .map(({ label, value }) => (
                 <div key={label} className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-3 py-3 text-center">
                   <p className="text-[#8888aa] text-xs mb-1">{label}</p>
