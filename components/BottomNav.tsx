@@ -100,6 +100,30 @@ export default function BottomNav() {
     };
   }, []);
 
+  useEffect(() => {
+    const totalUnread = dmUnread + notifUnread;
+    const nav = navigator as Navigator & {
+      setAppBadge?: (count?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+      serviceWorker?: ServiceWorkerContainer;
+    };
+
+    if (typeof nav.setAppBadge === "function") {
+      if (totalUnread > 0) {
+        nav.setAppBadge(totalUnread).catch(() => undefined);
+      } else if (typeof nav.clearAppBadge === "function") {
+        nav.clearAppBadge().catch(() => undefined);
+      }
+    }
+
+    if (nav.serviceWorker?.controller) {
+      nav.serviceWorker.controller.postMessage({
+        type: "BADGE_COUNT",
+        count: totalUnread,
+      });
+    }
+  }, [dmUnread, notifUnread]);
+
   const getBadge = (key: string | null): number => {
     if (key === "dm") return dmUnread;
     if (key === "notif") return notifUnread;
