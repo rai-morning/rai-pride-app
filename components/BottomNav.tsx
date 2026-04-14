@@ -63,8 +63,7 @@ export default function BottomNav() {
   const router = useRouter();
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
-
-  if (!pathname || pathname.startsWith("/auth/")) return null;
+  const hideNav = !pathname || pathname.startsWith("/auth/");
 
   useEffect(() => {
     let unsubDm: (() => void) | null = null;
@@ -75,10 +74,17 @@ export default function BottomNav() {
       unsubDm?.();
       unsubNotif?.();
 
-      if (!user) return;
+      if (!user) {
+        setDmUnread(0);
+        setNotifUnread(0);
+        return;
+      }
 
       unsubDm = subscribeConversations(user.uid, (convs) => {
-        const sum = convs.reduce((acc, c) => acc + (c.unreadCount[user.uid] ?? 0), 0);
+        const sum = convs.reduce(
+          (acc, c) => acc + ((c.unreadCount?.[user.uid] as number | undefined) ?? 0),
+          0
+        );
         setDmUnread(sum);
       });
 
@@ -99,6 +105,8 @@ export default function BottomNav() {
     if (key === "notif") return notifUnread;
     return 0;
   };
+
+  if (hideNav) return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#12121f] border-t border-[#00f5ff]/20">
