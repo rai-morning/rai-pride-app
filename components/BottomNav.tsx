@@ -64,6 +64,8 @@ export default function BottomNav() {
   const [dmUnread, setDmUnread] = useState(0);
   const [notifUnread, setNotifUnread] = useState(0);
 
+  if (pathname.startsWith("/auth/")) return null;
+
   useEffect(() => {
     let unsubDm: (() => void) | null = null;
     let unsubNotif: (() => void) | null = null;

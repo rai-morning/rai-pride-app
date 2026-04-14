@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-export type NotificationType = "like" | "view";
+export type NotificationType = "like" | "view" | "album_request";
 
 export type AppNotification = {
   id: string;

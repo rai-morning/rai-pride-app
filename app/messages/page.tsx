@@ -7,7 +7,6 @@ import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { subscribeConversations, Conversation } from "@/lib/conversations";
-import BottomNav from "@/components/BottomNav";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 type ConvWithUser = Conversation & {
@@ -251,7 +250,6 @@ export default function MessagesPage() {
         )}
       </div>
     </main>
-    <BottomNav />
     </>
   );
 }

@@ -13,6 +13,12 @@ import { isOnline } from "@/lib/online";
 import { sendLike, removeLike, hasLiked } from "@/lib/likes";
 import { addNotification } from "@/lib/notifications";
 import { addFavorite, hasFavorited, removeFavorite } from "@/lib/favorites";
+import {
+  AlbumType,
+  getAlbumAccessBetween,
+  getMyPendingAlbumRequestMap,
+  requestAlbumAccess,
+} from "@/lib/albumAccess";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 type Position = "top" | "bottom" | "versatile" | "side";
@@ -76,6 +82,9 @@ export default function ProfileDetailPage() {
   const [liking, setLiking] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
+  const [albumAccess, setAlbumAccess] = useState<{ face: boolean; body: boolean }>({ face: false, body: false });
+  const [pendingAlbumRequests, setPendingAlbumRequests] = useState<Record<AlbumType, boolean>>({ face: false, body: false });
+  const [requestingAlbumType, setRequestingAlbumType] = useState<AlbumType | null>(null);
 
   // 通報モーダル
   const [reportOpen, setReportOpen] = useState(false);
@@ -109,12 +118,14 @@ export default function ProfileDetailPage() {
 
   const fetchAll = async (myUid: string) => {
     try {
-      const [snap, blocked, muted, liked, favorited] = await Promise.all([
+      const [snap, blocked, muted, liked, favorited, access, pendingReqs] = await Promise.all([
         getDoc(doc(db, "users", userId)),
         getBlockedUsers(myUid),
         getMutedUsers(myUid),
         hasLiked(myUid, userId),
         hasFavorited(myUid, userId),
+        getAlbumAccessBetween(myUid, userId),
+        getMyPendingAlbumRequestMap(myUid, userId),
       ]);
       if (!snap.exists()) { setNotFound(true); return; }
       const data = snap.data();
@@ -127,6 +138,8 @@ export default function ProfileDetailPage() {
       setIsMuted(muted.includes(userId));
       setIsLiked(liked);
       setIsFavorited(favorited);
+      setAlbumAccess(access);
+      setPendingAlbumRequests(pendingReqs);
       recordProfileView(myUid, userId);
     } catch (err) {
       console.error("[ProfileDetail] 取得エラー:", err);
@@ -215,6 +228,21 @@ export default function ProfileDetailPage() {
       alert("通報に失敗しました");
     } finally {
       setReporting(false);
+    }
+  };
+
+  const handleAlbumRequest = async (type: AlbumType) => {
+    if (!currentUser || requestingAlbumType) return;
+    setRequestingAlbumType(type);
+    try {
+      await requestAlbumAccess(currentUser.uid, userId, type);
+      setPendingAlbumRequests((prev) => ({ ...prev, [type]: true }));
+      await addNotification(userId, "album_request", currentUser.uid);
+    } catch (err) {
+      console.error("アルバム申請失敗:", err);
+      alert("アルバム申請に失敗しました");
+    } finally {
+      setRequestingAlbumType(null);
     }
   };
 
@@ -431,6 +459,62 @@ export default function ProfileDetailPage() {
             <div className="bg-[#12121f] border border-[#00f5ff]/25 rounded-xl px-4 py-4">
               <p className="text-[#00f5ff] text-xs font-medium mb-1.5">顔・体アルバム公開設定</p>
               <p className="text-[#9aa7b1] text-sm">相互承認で同時公開</p>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => handleAlbumRequest("face")}
+                  disabled={albumAccess.face || pendingAlbumRequests.face || requestingAlbumType !== null}
+                  className={`h-10 rounded-xl text-xs font-medium border transition ${
+                    albumAccess.face
+                      ? "bg-green-500/15 border-green-500/40 text-green-300"
+                      : pendingAlbumRequests.face
+                        ? "bg-[#ff2d78]/10 border-[#ff2d78]/40 text-[#ff2d78]"
+                        : "bg-[#0d0d1a] border-[#00f5ff]/30 text-[#00f5ff] hover:border-[#00f5ff]"
+                  } disabled:opacity-70`}
+                >
+                  {albumAccess.face ? "顔アルバム公開中" : pendingAlbumRequests.face ? "顔アルバム申請中" : "顔アルバムを申請"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAlbumRequest("body")}
+                  disabled={albumAccess.body || pendingAlbumRequests.body || requestingAlbumType !== null}
+                  className={`h-10 rounded-xl text-xs font-medium border transition ${
+                    albumAccess.body
+                      ? "bg-green-500/15 border-green-500/40 text-green-300"
+                      : pendingAlbumRequests.body
+                        ? "bg-[#ff2d78]/10 border-[#ff2d78]/40 text-[#ff2d78]"
+                        : "bg-[#0d0d1a] border-[#00f5ff]/30 text-[#00f5ff] hover:border-[#00f5ff]"
+                  } disabled:opacity-70`}
+                >
+                  {albumAccess.body ? "体アルバム公開中" : pendingAlbumRequests.body ? "体アルバム申請中" : "体アルバムを申請"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!isBlocked && albumAccess.face && (p.faceImages?.length ?? 0) > 0 && (
+            <div className="bg-[#12121f] border border-[#00f5ff]/25 rounded-xl px-4 py-4">
+              <p className="text-[#00f5ff] text-xs font-medium mb-2">顔アルバム（相互公開中）</p>
+              <div className="grid grid-cols-3 gap-2">
+                {p.faceImages!.map((src, i) => (
+                  <div key={`face-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-[#00f5ff]/25">
+                    <Image src={src} alt={`${p.name}の顔写真 ${i + 1}`} fill className="object-cover" unoptimized />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isBlocked && albumAccess.body && (p.bodyImages?.length ?? 0) > 0 && (
+            <div className="bg-[#12121f] border border-[#00f5ff]/25 rounded-xl px-4 py-4">
+              <p className="text-[#00f5ff] text-xs font-medium mb-2">体アルバム（相互公開中）</p>
+              <div className="grid grid-cols-3 gap-2">
+                {p.bodyImages!.map((src, i) => (
+                  <div key={`body-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-[#00f5ff]/25">
+                    <Image src={src} alt={`${p.name}の体写真 ${i + 1}`} fill className="object-cover" unoptimized />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

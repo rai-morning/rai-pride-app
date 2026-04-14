@@ -6,7 +6,7 @@ import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import BottomNav from "@/components/BottomNav";
+import { getAlbumAccessBetween } from "@/lib/albumAccess";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 type Position = "top" | "bottom" | "versatile" | "side";
@@ -47,6 +47,7 @@ export default function MyProfilePage() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [modalIndex, setModalIndex] = useState<number | null>(null);
+  const [albumAccess, setAlbumAccess] = useState<{ face: boolean; body: boolean }>({ face: false, body: false });
 
   const getDisplayImages = (p: ProfileData): string[] => {
     const profile = p.profileImages ?? p.images ?? [];
@@ -75,6 +76,13 @@ export default function MyProfilePage() {
           ...data,
           livingArea: data.livingArea ?? data.hobby ?? "",
         } as ProfileData);
+      }
+      const qUid = new URLSearchParams(window.location.search).get("with");
+      if (qUid && qUid !== uid) {
+        const access = await getAlbumAccessBetween(uid, qUid);
+        setAlbumAccess(access);
+      } else {
+        setAlbumAccess({ face: false, body: false });
       }
     } finally {
       setProfileLoading(false);
@@ -238,6 +246,32 @@ export default function MyProfilePage() {
                 <p className="text-[#9aa7b1] text-sm">相互承認で同時公開</p>
               </div>
 
+              {albumAccess.face && (profile.faceImages?.length ?? 0) > 0 && (
+                <div className="bg-[#12121f] border border-[#00f5ff]/25 rounded-xl px-4 py-4">
+                  <p className="text-[#00f5ff] text-xs font-medium mb-2">顔アルバム（相互公開中）</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {profile.faceImages!.map((src, i) => (
+                      <div key={`my-face-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-[#00f5ff]/25">
+                        <Image src={src} alt={`顔写真 ${i + 1}`} fill className="object-cover" unoptimized />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {albumAccess.body && (profile.bodyImages?.length ?? 0) > 0 && (
+                <div className="bg-[#12121f] border border-[#00f5ff]/25 rounded-xl px-4 py-4">
+                  <p className="text-[#00f5ff] text-xs font-medium mb-2">体アルバム（相互公開中）</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {profile.bodyImages!.map((src, i) => (
+                      <div key={`my-body-${i}`} className="relative aspect-square rounded-lg overflow-hidden border border-[#00f5ff]/25">
+                        <Image src={src} alt={`体写真 ${i + 1}`} fill className="object-cover" unoptimized />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* 編集ボタン */}
               <button onClick={() => router.push("/profile/edit")}
                 className="w-full h-12 bg-gradient-to-r from-[#7a5cff] via-[#27d3ff] to-[#ff4fd8] hover:opacity-90 active:opacity-80 text-white text-sm font-semibold rounded-xl transition flex items-center justify-center gap-2">
@@ -281,7 +315,6 @@ export default function MyProfilePage() {
         </div>
       )}
 
-      <BottomNav />
     </>
   );
 }

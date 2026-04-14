@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import BottomNav from "@/components/BottomNav";
 import {
   Community,
   Category,
@@ -195,7 +194,6 @@ export default function CommunitiesPage() {
         )}
       </div>
     </main>
-    <BottomNav />
     </>
   );
 }

@@ -12,7 +12,6 @@ import { getMutedUsers } from "@/lib/mute";
 import { getUserCommunityIds, getSharedCommunityUserIds, getCommunities, Community } from "@/lib/communities";
 import { updateLastOnline, isOnline } from "@/lib/online";
 import { getFavoritedUserIds } from "@/lib/favorites";
-import BottomNav from "@/components/BottomNav";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 const RADIUS_M = 100_000;
@@ -609,7 +608,6 @@ export default function HomePage() {
         </div>
       )}
 
-      <BottomNav />
     </>
   );
 }

@@ -11,10 +11,16 @@ import { getProfileViewers, ProfileView } from "@/lib/profileViews";
 import { markAllRead } from "@/lib/notifications";
 import { isOnline } from "@/lib/online";
 import { Timestamp } from "firebase/firestore";
-import BottomNav from "@/components/BottomNav";
+import {
+  approveAlbumRequest,
+  getReceivedPendingAlbumRequests,
+  rejectAlbumRequest,
+  AlbumRequest,
+  AlbumType,
+} from "@/lib/albumAccess";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
-type Tab = "received" | "sent" | "views";
+type Tab = "received" | "sent" | "views" | "album";
 
 type UserCard = {
   uid: string;
@@ -23,6 +29,12 @@ type UserCard = {
   images: string[];
   online: boolean;
   timestamp: Timestamp | null;
+};
+
+type AlbumRequestCard = {
+  requestId: string;
+  requestType: AlbumType;
+  user: UserCard;
 };
 
 function formatTime(ts: Timestamp | null): string {
@@ -69,10 +81,13 @@ function NotificationsPage() {
   const [receivedCards, setReceivedCards] = useState<UserCard[]>([]);
   const [sentCards, setSentCards] = useState<UserCard[]>([]);
   const [viewCards, setViewCards] = useState<UserCard[]>([]);
+  const [albumCards, setAlbumCards] = useState<AlbumRequestCard[]>([]);
 
   const [loadingReceived, setLoadingReceived] = useState(false);
   const [loadingSent, setLoadingSent] = useState(false);
   const [loadingViews, setLoadingViews] = useState(false);
+  const [loadingAlbum, setLoadingAlbum] = useState(false);
+  const [actingAlbumRequestId, setActingAlbumRequestId] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -92,6 +107,7 @@ function NotificationsPage() {
     if (!myUid) return;
     if (activeTab === "sent" && sentCards.length === 0 && !loadingSent) loadSent(myUid);
     if (activeTab === "views" && viewCards.length === 0 && !loadingViews) loadViews(myUid);
+    if (activeTab === "album" && albumCards.length === 0 && !loadingAlbum) loadAlbumRequests(myUid);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, myUid]);
 
@@ -130,6 +146,55 @@ function NotificationsPage() {
     }
   };
 
+  const loadAlbumRequests = async (uid: string) => {
+    setLoadingAlbum(true);
+    try {
+      const requests = await getReceivedPendingAlbumRequests(uid);
+      const cards = await Promise.all(
+        requests.map(async (req: AlbumRequest) => {
+          const user = await enrichUser(req.fromUserId, req.createdAt);
+          if (!user) return null;
+          return {
+            requestId: req.id,
+            requestType: req.type,
+            user,
+          } as AlbumRequestCard;
+        })
+      );
+      setAlbumCards(cards.filter((c): c is AlbumRequestCard => c !== null));
+    } finally {
+      setLoadingAlbum(false);
+    }
+  };
+
+  const handleApprove = async (requestId: string) => {
+    if (!myUid || actingAlbumRequestId) return;
+    setActingAlbumRequestId(requestId);
+    try {
+      await approveAlbumRequest(requestId, myUid);
+      setAlbumCards((prev) => prev.filter((c) => c.requestId !== requestId));
+    } catch (err) {
+      console.error("アルバム承認失敗:", err);
+      alert("承認に失敗しました");
+    } finally {
+      setActingAlbumRequestId(null);
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
+    if (!myUid || actingAlbumRequestId) return;
+    setActingAlbumRequestId(requestId);
+    try {
+      await rejectAlbumRequest(requestId, myUid);
+      setAlbumCards((prev) => prev.filter((c) => c.requestId !== requestId));
+    } catch (err) {
+      console.error("アルバム拒否失敗:", err);
+      alert("拒否に失敗しました");
+    } finally {
+      setActingAlbumRequestId(null);
+    }
+  };
+
   if (authLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#0a0a0f]">
@@ -142,21 +207,25 @@ function NotificationsPage() {
     { key: "received", label: "いいね受信", count: receivedCards.length },
     { key: "sent",     label: "いいね送信", count: sentCards.length },
     { key: "views",    label: "足跡",       count: viewCards.length },
+    { key: "album",    label: "アルバム申請", count: albumCards.length },
   ];
 
   const isLoading =
     (activeTab === "received" && loadingReceived) ||
     (activeTab === "sent" && loadingSent) ||
-    (activeTab === "views" && loadingViews);
+    (activeTab === "views" && loadingViews) ||
+    (activeTab === "album" && loadingAlbum);
 
   const currentCards =
     activeTab === "received" ? receivedCards :
-    activeTab === "sent" ? sentCards : viewCards;
+    activeTab === "sent" ? sentCards :
+    activeTab === "views" ? viewCards : [];
 
   const emptyMessages: Record<Tab, { title: string; sub: string }> = {
     received: { title: "まだいいねがありません", sub: "プロフィールを充実させてみましょう" },
     sent:     { title: "まだいいねを送っていません", sub: "気になるユーザーにいいねを送ってみましょう" },
     views:    { title: "まだ誰も見ていません", sub: "あなたのプロフィールが閲覧されると表示されます" },
+    album:    { title: "アルバム申請はありません", sub: "申請が届くとここに表示されます" },
   };
 
   return (
@@ -205,6 +274,66 @@ function NotificationsPage() {
             <div className="flex justify-center py-20">
               <div className="w-6 h-6 border-2 border-[#ff2d78] border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : activeTab === "album" ? (
+            albumCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="w-16 h-16 bg-[#12121f] border border-[#ff2d78]/20 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l9 6 9-6M21 8v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8" />
+                  </svg>
+                </div>
+                <p className="text-white font-medium mb-1">{emptyMessages.album.title}</p>
+                <p className="text-[#8888aa] text-sm">{emptyMessages.album.sub}</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-[#ff2d78]/10 bg-[#12121f] border border-[#ff2d78]/20 rounded-2xl overflow-hidden">
+                {albumCards.map((card) => (
+                  <li key={card.requestId} className="px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => router.push(`/profile/${card.user.uid}`)}
+                        className="relative w-12 h-12 rounded-lg overflow-hidden bg-[#0d0d1a] border border-[#ff2d78]/20 shrink-0"
+                      >
+                        {card.user.images[0] ? (
+                          <Image src={card.user.images[0]} alt={card.user.name} fill className="object-cover" unoptimized />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <svg className="w-6 h-6 text-[#8888aa]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-semibold truncate">{card.user.name}</p>
+                        <p className="text-[#8888aa] text-xs mt-0.5">
+                          {card.requestType === "face" ? "顔アルバム" : "体アルバム"}の公開申請
+                        </p>
+                      </div>
+                      <span className="text-[#8888aa] text-[10px]">{formatTime(card.user.timestamp)}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => handleReject(card.requestId)}
+                        disabled={actingAlbumRequestId !== null}
+                        className="h-9 rounded-lg border border-[#8888aa]/35 text-[#8888aa] text-xs font-medium hover:border-[#8888aa]/60 disabled:opacity-60"
+                      >
+                        拒否
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApprove(card.requestId)}
+                        disabled={actingAlbumRequestId !== null}
+                        className="h-9 rounded-lg border border-[#00f5ff]/40 text-[#00f5ff] text-xs font-medium hover:border-[#00f5ff] bg-[#00f5ff]/10 disabled:opacity-60"
+                      >
+                        承認
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
           ) : currentCards.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-16 h-16 bg-[#12121f] border border-[#ff2d78]/20 rounded-full flex items-center justify-center mb-4">
@@ -265,7 +394,6 @@ function NotificationsPage() {
           )}
         </div>
       </main>
-      <BottomNav />
     </>
   );
 }
