@@ -381,7 +381,7 @@ export default function ProfileDetailPage() {
               { label: "髪型", value: p.hairStyle, hidden: isBlocked },
               { label: "好み年齢", value: p.preferredAge, hidden: isBlocked },
             ]
-              .filter((item): item is { label: string; value: string; hidden: boolean } => !item.hidden && Boolean(item.value))
+              .filter((item) => !item.hidden && Boolean(item.value))
               .map(({ label, value }) => (
                 <div key={label} className="bg-[#12121f] border border-[#ff2d78]/20 rounded-xl px-3 py-3 text-center">
                   <p className="text-[#8888aa] text-xs mb-1">{label}</p>
