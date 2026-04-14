@@ -116,6 +116,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /pushTokens/{userId}/tokens/{tokenId} {
+      allow read, list: if isSelf(userId);
+      allow create, update, delete: if isSelf(userId);
+    }
+
     match /reports/{reportId} {
       allow create: if signedIn() && request.resource.data.reporterId == request.auth.uid;
       allow read, update, delete: if false;

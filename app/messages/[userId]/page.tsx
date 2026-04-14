@@ -14,6 +14,7 @@ import {
   Message,
 } from "@/lib/conversations";
 import { getBlockedUsers } from "@/lib/block";
+import { sendPushToUser } from "@/lib/push";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 type OtherUser = {
@@ -97,6 +98,12 @@ export default function ChatPage() {
     setSending(true);
     try {
       await sendMessage(conversationId, user.uid, { text: msg }, otherUid);
+      await sendPushToUser({
+        toUserId: otherUid,
+        type: "dm",
+        senderName: user.displayName ?? "RAISE",
+        message: msg,
+      });
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -180,6 +187,12 @@ export default function ChatPage() {
     try {
       const imageUrl = await uploadChatImage(file);
       await sendMessage(conversationId, user.uid, { imageUrl }, otherUid);
+      await sendPushToUser({
+        toUserId: otherUid,
+        type: "dm",
+        senderName: user.displayName ?? "RAISE",
+        message: "画像を送信しました",
+      });
     } catch (err) {
       console.error("画像送信失敗:", err);
       alert("画像の送信に失敗しました");

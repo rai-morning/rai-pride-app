@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { initPushNotifications } from "@/lib/push";
 
 export default function NotificationsSettingsPage() {
   const router = useRouter();
@@ -23,6 +24,9 @@ export default function NotificationsSettingsPage() {
     try {
       const result = await Notification.requestPermission();
       setPermission(result);
+      if (result === "granted") {
+        await initPushNotifications();
+      }
     } finally {
       setRequesting(false);
     }

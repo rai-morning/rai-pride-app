@@ -13,6 +13,7 @@ import { isOnline } from "@/lib/online";
 import { sendLike, removeLike, hasLiked } from "@/lib/likes";
 import { addNotification } from "@/lib/notifications";
 import { addFavorite, hasFavorited, removeFavorite } from "@/lib/favorites";
+import { sendPushToUser } from "@/lib/push";
 import {
   AlbumType,
   getAlbumAccessBetween,
@@ -157,6 +158,12 @@ export default function ProfileDetailPage() {
       } else {
         await sendLike(currentUser.uid, userId);
         await addNotification(userId, "like", currentUser.uid);
+        await sendPushToUser({
+          toUserId: userId,
+          type: "like",
+          senderName: currentUser.displayName ?? "RAISE",
+          message: "あなたにいいねが届きました",
+        });
         setIsLiked(true);
       }
     } catch (err) {
@@ -238,6 +245,12 @@ export default function ProfileDetailPage() {
       await requestAlbumAccess(currentUser.uid, userId, type);
       setPendingAlbumRequests((prev) => ({ ...prev, [type]: true }));
       await addNotification(userId, "album_request", currentUser.uid);
+      await sendPushToUser({
+        toUserId: userId,
+        type: "album_request",
+        senderName: currentUser.displayName ?? "RAISE",
+        message: `${type === "face" ? "顔" : "体"}アルバムの公開申請が届きました`,
+      });
     } catch (err) {
       console.error("アルバム申請失敗:", err);
       alert("アルバム申請に失敗しました");
