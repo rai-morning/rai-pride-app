@@ -64,6 +64,14 @@ export async function POST(req: NextRequest) {
           link: "/notifications",
         },
       },
+      data: {
+        title: senderName,
+        body: message,
+        url: "/notifications",
+        badgeCount: String(badgeCount > 0 ? badgeCount : 1),
+        icon: "/icon?size=192",
+        badge: "/icon?size=192",
+      },
       apns: {
         payload: {
           aps: {

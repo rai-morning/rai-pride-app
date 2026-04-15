@@ -14,7 +14,9 @@ export default function PWASetup() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (!u) return;
-      initPushNotifications().catch(() => undefined);
+      initPushNotifications().catch((err) => {
+        console.warn("[PWASetup] push init failed:", err);
+      });
     });
     return () => unsub();
   }, []);

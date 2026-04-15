@@ -39,7 +39,7 @@ export async function initPushNotifications(): Promise<void> {
   if (!token) return;
 
   const idToken = await getIdToken();
-  await fetch("/api/push/token", {
+  const res = await fetch("/api/push/token", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -47,6 +47,10 @@ export async function initPushNotifications(): Promise<void> {
     },
     body: JSON.stringify({ token }),
   });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`push token registration failed: ${res.status} ${detail}`);
+  }
   pushInitialized = true;
 }
 
@@ -58,7 +62,7 @@ export async function sendPushToUser(params: {
   badgeCount?: number;
 }): Promise<void> {
   const idToken = await getIdToken();
-  await fetch("/api/push/send", {
+  const res = await fetch("/api/push/send", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -66,4 +70,8 @@ export async function sendPushToUser(params: {
     },
     body: JSON.stringify(params),
   });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`push send failed: ${res.status} ${detail}`);
+  }
 }

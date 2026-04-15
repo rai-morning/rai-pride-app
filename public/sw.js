@@ -53,3 +53,61 @@ self.addEventListener("message", (event) => {
     self.registration.clearAppBadge().catch(() => undefined);
   }
 });
+
+self.addEventListener("push", (event) => {
+  const payload = (() => {
+    try {
+      return event.data ? event.data.json() : {};
+    } catch {
+      return {};
+    }
+  })();
+
+  const title =
+    payload?.notification?.title ||
+    payload?.data?.title ||
+    "RAISE";
+  const body =
+    payload?.notification?.body ||
+    payload?.data?.body ||
+    "新しい通知があります";
+  const icon =
+    payload?.notification?.icon ||
+    payload?.data?.icon ||
+    "/icon?size=192";
+  const badge =
+    payload?.notification?.badge ||
+    payload?.data?.badge ||
+    "/icon?size=192";
+  const url = payload?.data?.url || "/notifications";
+  const badgeCount = Number(payload?.data?.badgeCount ?? 0);
+
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, {
+        body,
+        icon,
+        badge,
+        data: { url },
+      });
+      if (typeof self.registration.setAppBadge === "function" && badgeCount > 0) {
+        await self.registration.setAppBadge(badgeCount).catch(() => undefined);
+      }
+    })()
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification?.data?.url || "/notifications";
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((allClients) => {
+      const existing = allClients.find((client) => "focus" in client);
+      if (existing) {
+        existing.navigate(url);
+        return existing.focus();
+      }
+      return clients.openWindow(url);
+    })
+  );
+});

@@ -8,6 +8,7 @@ export default function NotificationsSettingsPage() {
   const router = useRouter();
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [requesting, setRequesting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -26,7 +27,12 @@ export default function NotificationsSettingsPage() {
       setPermission(result);
       if (result === "granted") {
         await initPushNotifications();
+        setStatusMessage("通知を有効化しました");
+      } else {
+        setStatusMessage("通知が許可されていません");
       }
+    } catch (err) {
+      setStatusMessage(`設定に失敗: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setRequesting(false);
     }
@@ -64,6 +70,9 @@ export default function NotificationsSettingsPage() {
               {requesting ? "確認中..." : permission === "granted" ? "許可済み" : "通知を許可"}
             </button>
           </div>
+          {statusMessage && (
+            <p className="text-[11px] text-[#9aa7b1] mt-2 break-words">{statusMessage}</p>
+          )}
         </div>
       </div>
     </main>
