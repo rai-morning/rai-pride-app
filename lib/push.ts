@@ -61,6 +61,8 @@ export async function getPushDebugState(): Promise<{
   serviceWorkerReady: boolean;
   messagingSupported: boolean;
   vapidConfigured: boolean;
+  runningStandalone: boolean;
+  appBadgeApiSupported: boolean;
 }> {
   const notificationSupported = typeof window !== "undefined" && "Notification" in window;
   const notificationPermission = notificationSupported ? Notification.permission : "unsupported";
@@ -70,6 +72,13 @@ export async function getPushDebugState(): Promise<{
     : false;
   const messagingSupported = await isSupported().catch(() => false);
   const vapidConfigured = Boolean(process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY);
+  const runningStandalone =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true);
+  const appBadgeApiSupported =
+    typeof navigator !== "undefined" &&
+    ("setAppBadge" in navigator || "clearAppBadge" in navigator);
 
   return {
     notificationSupported,
@@ -78,6 +87,8 @@ export async function getPushDebugState(): Promise<{
     serviceWorkerReady,
     messagingSupported,
     vapidConfigured,
+    runningStandalone,
+    appBadgeApiSupported,
   };
 }
 

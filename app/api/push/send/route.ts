@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const type = String(body?.type ?? "").trim();
     const senderName = String(body?.senderName ?? "").trim() || "RAISE";
     const message = String(body?.message ?? "").trim() || messageTextByType(type);
-    const badgeCount = Number(body?.badgeCount ?? 0);
+    let badgeCount = Number(body?.badgeCount ?? 0);
 
     if (!toUserId || !type) {
       return NextResponse.json({ error: "toUserId and type are required" }, { status: 400 });
@@ -47,6 +47,27 @@ export async function POST(req: NextRequest) {
     const tokens = tokenSnap.docs.map((d) => d.id).filter(Boolean);
     if (tokens.length === 0) {
       return NextResponse.json({ ok: true, sent: 0, reason: "no_tokens" });
+    }
+
+    if (badgeCount <= 0) {
+      const [notifSnap, convSnap] = await Promise.all([
+        adminDb()
+          .collection("notifications")
+          .doc(toUserId)
+          .collection("items")
+          .where("isRead", "==", false)
+          .get(),
+        adminDb()
+          .collection("conversations")
+          .where("participants", "array-contains", toUserId)
+          .get(),
+      ]);
+      const unreadNotif = notifSnap.size;
+      const unreadDm = convSnap.docs.reduce((acc, d) => {
+        const data = d.data() as { unreadCount?: Record<string, number> };
+        return acc + Number(data.unreadCount?.[toUserId] ?? 0);
+      }, 0);
+      badgeCount = unreadNotif + unreadDm;
     }
 
     const payload = {

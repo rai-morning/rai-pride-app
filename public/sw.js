@@ -43,13 +43,18 @@ self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type !== "BADGE_COUNT") return;
   const count = Number(data.count ?? 0);
-  if (!self.registration) return;
-
-  if (typeof self.registration.setAppBadge === "function" && count > 0) {
-    self.registration.setAppBadge(count).catch(() => undefined);
+  const nav = self.navigator || {};
+  if (count > 0) {
+    if (typeof nav.setAppBadge === "function") {
+      nav.setAppBadge(count).catch(() => undefined);
+    } else if (self.registration && typeof self.registration.setAppBadge === "function") {
+      self.registration.setAppBadge(count).catch(() => undefined);
+    }
     return;
   }
-  if (typeof self.registration.clearAppBadge === "function") {
+  if (typeof nav.clearAppBadge === "function") {
+    nav.clearAppBadge().catch(() => undefined);
+  } else if (self.registration && typeof self.registration.clearAppBadge === "function") {
     self.registration.clearAppBadge().catch(() => undefined);
   }
 });
@@ -90,8 +95,13 @@ self.addEventListener("push", (event) => {
         badge,
         data: { url },
       });
-      if (typeof self.registration.setAppBadge === "function" && badgeCount > 0) {
-        await self.registration.setAppBadge(badgeCount).catch(() => undefined);
+      if (badgeCount > 0) {
+        const nav = self.navigator || {};
+        if (typeof nav.setAppBadge === "function") {
+          await nav.setAppBadge(badgeCount).catch(() => undefined);
+        } else if (typeof self.registration.setAppBadge === "function") {
+          await self.registration.setAppBadge(badgeCount).catch(() => undefined);
+        }
       }
     })()
   );

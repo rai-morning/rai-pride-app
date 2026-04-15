@@ -16,6 +16,8 @@ export default function NotificationsSettingsPage() {
     serviceWorkerReady: boolean;
     messagingSupported: boolean;
     vapidConfigured: boolean;
+    runningStandalone: boolean;
+    appBadgeApiSupported: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -33,8 +35,16 @@ export default function NotificationsSettingsPage() {
       return;
     }
     setRequesting(true);
+    setStatusMessage("");
     try {
-      const result = await Notification.requestPermission();
+      const result = await Promise.race<NotificationPermission | "timeout">([
+        Notification.requestPermission(),
+        new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 10000)),
+      ]);
+      if (result === "timeout") {
+        setStatusMessage("確認ダイアログが表示されていません。ブラウザ設定で通知を許可してください");
+        return;
+      }
       setPermission(result);
       if (result === "granted") {
         await initPushNotifications();
@@ -97,6 +107,8 @@ export default function NotificationsSettingsPage() {
             <p>Service Worker準備完了: {debugInfo?.serviceWorkerReady ? "OK" : "NG"}</p>
             <p>Firebase Messaging対応: {debugInfo?.messagingSupported ? "OK" : "NG"}</p>
             <p>VAPIDキー設定: {debugInfo?.vapidConfigured ? "OK" : "NG"}</p>
+            <p>ホーム追加(PWA起動): {debugInfo?.runningStandalone ? "OK" : "NG"}</p>
+            <p>バッジAPI対応: {debugInfo?.appBadgeApiSupported ? "OK" : "NG"}</p>
           </div>
         </div>
       </div>
