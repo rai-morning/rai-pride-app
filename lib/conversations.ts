@@ -152,3 +152,25 @@ export async function markAsRead(
     unreadCount: { ...prev, [myUid]: 0 },
   });
 }
+
+// 自分の全会話を既読化（DM一覧を開いた時用）
+export async function markAllConversationsAsRead(myUid: string): Promise<void> {
+  const q = query(
+    collection(db, "conversations"),
+    where("participants", "array-contains", myUid)
+  );
+  const snap = await getDocs(q);
+  await Promise.all(
+    snap.docs.map(async (d) => {
+      const data = d.data() as Conversation;
+      const current = Number(data.unreadCount?.[myUid] ?? 0);
+      if (current <= 0) return;
+      await updateDoc(d.ref, {
+        unreadCount: {
+          ...(data.unreadCount ?? {}),
+          [myUid]: 0,
+        },
+      });
+    })
+  );
+}

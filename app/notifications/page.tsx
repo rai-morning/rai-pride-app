@@ -8,7 +8,12 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { getLikesReceived, getLikesSent, Like } from "@/lib/likes";
 import { getProfileViewers, ProfileView } from "@/lib/profileViews";
-import { markAllRead } from "@/lib/notifications";
+import {
+  markAllRead,
+  getNotificationSeenState,
+  markNotificationSeen,
+  NotificationSeenState,
+} from "@/lib/notifications";
 import { isOnline } from "@/lib/online";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -88,15 +93,24 @@ function NotificationsPage() {
   const [loadingViews, setLoadingViews] = useState(false);
   const [loadingAlbum, setLoadingAlbum] = useState(false);
   const [actingAlbumRequestId, setActingAlbumRequestId] = useState<string | null>(null);
+  const [seenState, setSeenState] = useState<NotificationSeenState>({
+    receivedLikeAtMs: 0,
+    sentLikeAtMs: 0,
+    viewsAtMs: 0,
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       if (!u) { router.replace("/auth/login"); return; }
-      setMyUid(u.uid);
-      setAuthLoading(false);
-      // ページを開いたら通知を既読にする
-      markAllRead(u.uid);
-      loadReceived(u.uid);
+      const init = async () => {
+        setMyUid(u.uid);
+        setAuthLoading(false);
+        // ページを開いたら通知を既読にする
+        await markAllRead(u.uid).catch(() => undefined);
+        const seen = await getNotificationSeenState(u.uid);
+        setSeenState(seen);
+      };
+      init();
     });
     return () => unsub();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,40 +119,75 @@ function NotificationsPage() {
   // タブ切り替え時にデータをロード
   useEffect(() => {
     if (!myUid) return;
-    if (activeTab === "sent" && sentCards.length === 0 && !loadingSent) loadSent(myUid);
-    if (activeTab === "views" && viewCards.length === 0 && !loadingViews) loadViews(myUid);
+    if (activeTab === "received" && receivedCards.length === 0 && !loadingReceived) {
+      loadReceived(myUid, seenState.receivedLikeAtMs);
+    }
+    if (activeTab === "sent" && sentCards.length === 0 && !loadingSent) loadSent(myUid, seenState.sentLikeAtMs);
+    if (activeTab === "views" && viewCards.length === 0 && !loadingViews) loadViews(myUid, seenState.viewsAtMs);
     if (activeTab === "album" && albumCards.length === 0 && !loadingAlbum) loadAlbumRequests(myUid);
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, myUid, seenState, receivedCards.length, sentCards.length, viewCards.length, albumCards.length, loadingReceived, loadingSent, loadingViews, loadingAlbum]);
+
+  useEffect(() => {
+    if (!myUid) return;
+    const run = async () => {
+      if (activeTab === "received") {
+        await markNotificationSeen(myUid, "receivedLikeAtMs").catch(() => undefined);
+        setSeenState((prev) => ({ ...prev, receivedLikeAtMs: Date.now() }));
+        setReceivedCards([]);
+      } else if (activeTab === "sent") {
+        await markNotificationSeen(myUid, "sentLikeAtMs").catch(() => undefined);
+        setSeenState((prev) => ({ ...prev, sentLikeAtMs: Date.now() }));
+        setSentCards([]);
+      } else if (activeTab === "views") {
+        await markNotificationSeen(myUid, "viewsAtMs").catch(() => undefined);
+        setSeenState((prev) => ({ ...prev, viewsAtMs: Date.now() }));
+        setViewCards([]);
+      }
+    };
+    run();
   }, [activeTab, myUid]);
 
-  const loadReceived = async (uid: string) => {
+  const loadReceived = async (uid: string, seenAtMs: number) => {
     setLoadingReceived(true);
     try {
       const likes = await getLikesReceived(uid);
-      const cards = await Promise.all(likes.map((l) => enrichUser(l.fromUserId, l.createdAt)));
+      const unreadLikes = likes.filter((l) => {
+        const createdAtMs = l.createdAt?.toMillis() ?? 0;
+        return createdAtMs > seenAtMs;
+      });
+      const cards = await Promise.all(unreadLikes.map((l) => enrichUser(l.fromUserId, l.createdAt)));
       setReceivedCards(cards.filter((c): c is UserCard => c !== null));
     } finally {
       setLoadingReceived(false);
     }
   };
 
-  const loadSent = async (uid: string) => {
+  const loadSent = async (uid: string, seenAtMs: number) => {
     setLoadingSent(true);
     try {
       const likes = await getLikesSent(uid);
-      const cards = await Promise.all(likes.map((l) => enrichUser(l.toUserId, l.createdAt)));
+      const unreadLikes = likes.filter((l) => {
+        const createdAtMs = l.createdAt?.toMillis() ?? 0;
+        return createdAtMs > seenAtMs;
+      });
+      const cards = await Promise.all(unreadLikes.map((l) => enrichUser(l.toUserId, l.createdAt)));
       setSentCards(cards.filter((c): c is UserCard => c !== null));
     } finally {
       setLoadingSent(false);
     }
   };
 
-  const loadViews = async (uid: string) => {
+  const loadViews = async (uid: string, seenAtMs: number) => {
     setLoadingViews(true);
     try {
       const views = await getProfileViewers(uid);
+      const unreadViews = views.filter((v) => {
+        const viewedAtMs = v.viewedAt?.toMillis() ?? 0;
+        return viewedAtMs > seenAtMs;
+      });
       const cards = await Promise.all(
-        views.map((v: ProfileView) => enrichUser(v.viewerId, v.viewedAt))
+        unreadViews.map((v: ProfileView) => enrichUser(v.viewerId, v.viewedAt))
       );
       setViewCards(cards.filter((c): c is UserCard => c !== null));
     } finally {

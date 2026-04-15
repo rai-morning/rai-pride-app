@@ -6,7 +6,11 @@ import Image from "next/image";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { subscribeConversations, Conversation } from "@/lib/conversations";
+import {
+  subscribeConversations,
+  Conversation,
+  markAllConversationsAsRead,
+} from "@/lib/conversations";
 import HamburgerMenuButton from "@/components/HamburgerMenuButton";
 
 type ConvWithUser = Conversation & {
@@ -49,6 +53,7 @@ export default function MessagesPage() {
       } else {
         setUser(currentUser);
         setAuthLoading(false);
+        markAllConversationsAsRead(currentUser.uid).catch(() => undefined);
       }
     });
     return () => unsubscribe();
