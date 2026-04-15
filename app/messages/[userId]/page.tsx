@@ -220,7 +220,7 @@ export default function ChatPage() {
   }
 
   return (
-    <main className="h-dvh bg-[#0a0a0f] text-white flex flex-col">
+    <main className="min-h-dvh bg-[#0a0a0f] text-white flex flex-col">
 
       {/* ヘッダー */}
       <header className="bg-[#12121f] border-b border-[#ff2d78]/20 px-4 h-14 flex items-center gap-3 shrink-0">
@@ -334,7 +334,7 @@ export default function ChatPage() {
       </div>
 
       {/* 入力欄 */}
-      <div className="bg-[#12121f] border-t border-[#ff2d78]/20 px-4 py-3 shrink-0">
+      <div className="bg-[#12121f] border-t border-[#ff2d78]/20 px-4 py-3 pb-[env(safe-area-inset-bottom)] shrink-0 mb-[calc(4rem+env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-2 max-w-[480px] mx-auto">
           <input
             ref={imageInputRef}
