@@ -2,18 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { initPushNotifications } from "@/lib/push";
+import { getPushDebugState, initPushNotifications } from "@/lib/push";
 
 export default function NotificationsSettingsPage() {
   const router = useRouter();
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [requesting, setRequesting] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [debugInfo, setDebugInfo] = useState<{
+    notificationSupported: boolean;
+    notificationPermission: NotificationPermission | "unsupported";
+    serviceWorkerSupported: boolean;
+    serviceWorkerReady: boolean;
+    messagingSupported: boolean;
+    vapidConfigured: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
       setPermission(Notification.permission);
     }
+    getPushDebugState()
+      .then((info) => setDebugInfo(info))
+      .catch(() => setDebugInfo(null));
   }, []);
 
   const requestPermission = async () => {
@@ -28,6 +39,8 @@ export default function NotificationsSettingsPage() {
       if (result === "granted") {
         await initPushNotifications();
         setStatusMessage("通知を有効化しました");
+        const info = await getPushDebugState().catch(() => null);
+        if (info) setDebugInfo(info);
       } else {
         setStatusMessage("通知が許可されていません");
       }
@@ -73,6 +86,18 @@ export default function NotificationsSettingsPage() {
           {statusMessage && (
             <p className="text-[11px] text-[#9aa7b1] mt-2 break-words">{statusMessage}</p>
           )}
+        </div>
+
+        <div className="bg-[#12121f] border border-[#00f5ff]/25 rounded-xl p-4">
+          <p className="text-sm text-white font-medium mb-2">通知ステータス</p>
+          <div className="space-y-1.5 text-[11px] text-[#9aa7b1]">
+            <p>通知API対応: {debugInfo?.notificationSupported ? "OK" : "NG"}</p>
+            <p>通知許可: {debugInfo ? String(debugInfo.notificationPermission) : "-"}</p>
+            <p>Service Worker対応: {debugInfo?.serviceWorkerSupported ? "OK" : "NG"}</p>
+            <p>Service Worker準備完了: {debugInfo?.serviceWorkerReady ? "OK" : "NG"}</p>
+            <p>Firebase Messaging対応: {debugInfo?.messagingSupported ? "OK" : "NG"}</p>
+            <p>VAPIDキー設定: {debugInfo?.vapidConfigured ? "OK" : "NG"}</p>
+          </div>
         </div>
       </div>
     </main>

@@ -54,6 +54,33 @@ export async function initPushNotifications(): Promise<void> {
   pushInitialized = true;
 }
 
+export async function getPushDebugState(): Promise<{
+  notificationSupported: boolean;
+  notificationPermission: NotificationPermission | "unsupported";
+  serviceWorkerSupported: boolean;
+  serviceWorkerReady: boolean;
+  messagingSupported: boolean;
+  vapidConfigured: boolean;
+}> {
+  const notificationSupported = typeof window !== "undefined" && "Notification" in window;
+  const notificationPermission = notificationSupported ? Notification.permission : "unsupported";
+  const serviceWorkerSupported = typeof navigator !== "undefined" && "serviceWorker" in navigator;
+  const serviceWorkerReady = serviceWorkerSupported
+    ? !!(await navigator.serviceWorker.ready.catch(() => null))
+    : false;
+  const messagingSupported = await isSupported().catch(() => false);
+  const vapidConfigured = Boolean(process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY);
+
+  return {
+    notificationSupported,
+    notificationPermission,
+    serviceWorkerSupported,
+    serviceWorkerReady,
+    messagingSupported,
+    vapidConfigured,
+  };
+}
+
 export async function sendPushToUser(params: {
   toUserId: string;
   type: "like" | "album_request" | "dm";

@@ -80,13 +80,17 @@ export default function BottomNav() {
         return;
       }
 
-      unsubDm = subscribeConversations(user.uid, (convs) => {
+      unsubDm = subscribeConversations(
+        user.uid,
+        (convs) => {
         const sum = convs.reduce(
-          (acc, c) => acc + ((c.unreadCount?.[user.uid] as number | undefined) ?? 0),
+          (acc, c) => acc + Number((c.unreadCount?.[user.uid] as number | undefined) ?? 0),
           0
         );
-        setDmUnread(sum);
-      });
+        setDmUnread(Number.isFinite(sum) ? sum : 0);
+      },
+        () => setDmUnread(0)
+      );
 
       unsubNotif = subscribeUnreadCount(user.uid, (count) => {
         setNotifUnread(count);
@@ -117,11 +121,13 @@ export default function BottomNav() {
     }
 
     if (nav.serviceWorker?.controller) {
-      nav.serviceWorker.controller.postMessage({
-        type: "BADGE_COUNT",
-        count: totalUnread,
-      });
+      nav.serviceWorker.controller.postMessage({ type: "BADGE_COUNT", count: totalUnread });
+      return;
     }
+
+    nav.serviceWorker?.ready
+      .then((reg) => reg.active?.postMessage({ type: "BADGE_COUNT", count: totalUnread }))
+      .catch(() => undefined);
   }, [dmUnread, notifUnread]);
 
   const getBadge = (key: string | null): number => {
